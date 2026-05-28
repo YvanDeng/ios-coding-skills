@@ -157,7 +157,7 @@ Classes/SwiftModules/
 ### 2.8 文件对应
 - 一个文件只定义**一个主要类**（私有扩展可放同文件）。
 - 每个自定义 `UIView` 子类独立文件，复杂页面可将主视图拆为独立 `UIView` 文件。
-- 类名前缀约定：本项目的公共类使用 **`HY`** 前缀（如 `HYBaseViewController`）。
+- 类名前缀约定：本项目的公共类**必须**使用 **`HY`** 前缀（如 `HYBaseViewController`）。
 
 ---
 
@@ -350,7 +350,7 @@ Cell 的背景色应设为 `.clear`（`backgroundColor = .clear`），由 `conte
 ### 5.1 UI 元素声明
 
 - UI 元素统一在对应 `// MARK: -` 分区顶部声明
-- 普通 UIView / UILabel / UIButton 等使用 `private let` 声明并初始化：
+- 普通 UIView / UILabel / UIButton 等**推荐**使用 `private let` 声明并初始化：
 
 ```swift
 private let titleLabel = UILabel()
@@ -358,7 +358,7 @@ private let submitButton = UIButton(type: .custom)
 private let avatarImageView = UIImageView()
 ```
 
-- UICollectionView 需要自定义 FlowLayout 时，使用 `private lazy var`，在闭包内完成 FlowLayout 配置和 CollectionView 初始化
+- UICollectionView 需要自定义 FlowLayout 时，**允许**使用 `private lazy var`，在闭包内完成 FlowLayout 配置和 CollectionView 初始化
 - **非 UICollectionView 不得使用 `lazy var`** 声明 UI 元素
 
 ```swift
@@ -1195,675 +1195,247 @@ UIView.animate(withDuration: 0.2, animations: {
 
 ## 11. 加载动画规范
 
-项目有两套并行的加载动画体系，分别服务于非 SwiftModule（OC）和 SwiftModule。加载动画类型包括：**Lottie 动画 Loading**、**静态骨架图**、**Shimmer 扫光**、**列表骨架屏** 和 **视频圆弧 Loading**。
+项目有两套并行的加载动画体系，分别服务于非 SwiftModule（OC）和 SwiftModule，包括 Lottie 动画、骨架屏、Shimmer 扫光等类型。
 
 ### 11.1 非 SwiftModule — HYLoadingView（核心加载组件）
 
 **定义位置**：`Classes/CommonModules/CommonUI/Loading/HYLoadingView.h/.m`
 
-项目中**统一的加载动画组件**，内部分为独角兽动画（全屏页面级）和菊花动画（局部组件级）两种 Lottie 资源。通过 `UIView+Loading` 和 `UIViewController+Loading` 分类提供便捷调用。
+项目中统一的加载动画组件，通过 `UIView+Loading` / `UIViewController+Loading` 分类提供便捷调用（内部通过 Associated Object 管理生命周期，强制主线程执行）。**非 SwiftModule 所有 Loading 必须通过此组件实现**，禁止自行拼凑 Lottie 视图。
 
-> **规则**：非 SwiftModule 模块中所有 Loading 需求**必须通过 HYLoadingView 或其分类方法**实现，禁止自行创建 Lottie 视图拼凑加载动画。
+五种变体对比：
 
-#### 11.1.1 全屏 Loading（`showLoadingView`）
-
-用于整页数据加载场景，覆盖整个父视图，默认白色背景。
-
-| 属性 | 值 |
-|------|-----|
-| **动画资源** | `ficfun_loading.json`（独角兽动画） |
-| **动画尺寸** | 44 × 44 pt |
-| **背景色** | 白色（可自定义） |
-| **位置** | 父视图居中 |
-| **循环** | 无限循环 |
+| 变体 | 调用方法 | 动画资源 | 动画尺寸 | 背景/外框 | 适用场景 |
+|------|---------|---------|---------|----------|---------|
+| **全屏 Loading** | `showLoadingView` | `ficfun_loading.json`（独角兽） | 44pt | 白色背景 | 整页首次加载 |
+| **小型 Loading** | `showSmallLoadingView` | `refreshLoading.json`（菊花） | 30pt | 透明背景 | 弹窗、卡片、局部区域 |
+| **指示器 Loading** | `showIndicatorLoadingView` | `refreshLoading.json` | 30pt | 52pt 深色圆角框（`#000` 60% + 8pt 圆角），可附带 12pt 白色文字 | 需视觉突出的短暂加载 |
+| **支付风格 Loading** | `showBgIndicatorLoadingView` | `refreshLoading.json` | 30pt | 52pt 白色圆角框 + 70% 黑色蒙层，可附带 16pt 白色文字（距框 8pt） | 支付、全局阻塞操作 |
+| **静态骨架图** | `showSkeletonScreenView` | 自定义 UIImage | — | iPad 等比缩放填充，iPhone 原图 | 页面首次加载占位 |
 
 ```objc
-// UIView 分类调用
+// 全屏加载
 [self.view showLoadingView];
-
-// 自定义背景色
 [self.view showLoadingViewWithBackgroundColor:UIColor.clearColor];
-
-// 指定 frame
-[self.view showLoadingViewWithFrame:CGRectMake(0, 100, SCREEN_WIDTH, 200)];
-
-// 隐藏
 [self.view hideLoadingView];
-```
 
-#### 11.1.2 小型 Loading（`showSmallLoadingView`）
-
-用于弹框、卡片、局部区域等非全屏场景，默认透明背景，尺寸更小。
-
-| 属性 | 值 |
-|------|-----|
-| **动画资源** | `refreshLoading.json`（菊花旋转动画） |
-| **动画尺寸** | 30 × 30 pt |
-| **背景色** | 透明（可自定义） |
-| **位置** | 父视图居中，支持 Y 轴偏移 |
-
-```objc
-// 默认透明背景，居中
-[self.view showSmallLoadingView];
-
-// Y 轴偏移（正值向下）
+// 小型加载（支持 Y 轴偏移）
 [self.view showSmallLoadingViewWithOffY:-50];
-
-// 自定义背景色
-[self.view showSmallLoadingViewWithBackgroundColor:UIColor.whiteColor];
-
-// 隐藏
 [self.view hideSmallLoadingView];
-```
 
-#### 11.1.3 指示器 Loading（`showIndicatorLoadingView`）
+// 带文字 + 自动消失
+[self.view showIndicatorLoadingViewWithTitle:@"Loading..." autoHiddenDuration:3.0];
 
-带深色圆角背景框的 Loading，适合需要视觉突出的场景。支持附带文字和自动消失。
-
-| 属性 | 值 |
-|------|-----|
-| **动画资源** | `refreshLoading.json` |
-| **动画尺寸** | 30 × 30 pt |
-| **外框尺寸** | 52 × 52 pt |
-| **外框背景** | `#000000` 60% 透明度 |
-| **外框圆角** | 8 pt |
-| **蒙层背景** | 透明（不阻挡底层交互） |
-| **文字样式** | 12pt Regular 白色，居中 |
-| **文字间距** | 与外框上下左右各 12pt（有文字时） |
-
-```objc
-// 仅动画，无文字
-[self.view showIndicatorLoadingView];
-
-// 带文字，3 秒后自动消失
-[self.view showIndicatorLoadingViewWithTitle:@"Loading..."
-                        autoHiddenDuration:3.0];
-
-// 隐藏
-[self.view hideIndicatorLoadingView];
-```
-
-#### 11.1.4 支付风格 Loading（`showBgIndicatorLoadingView`）
-
-带半透明黑色蒙层 + 白色圆角动画框，与支付流程 Loading 风格一致，视觉重量最高。
-
-| 属性 | 值 |
-|------|-----|
-| **动画资源** | `refreshLoading.json` |
-| **动画尺寸** | 30 × 30 pt |
-| **白色外框尺寸** | 52 × 52 pt |
-| **白色外框圆角** | 8 pt |
-| **蒙层背景** | `#000000` 70% 透明度 |
-| **文字样式** | 16pt Regular 白色，居中 |
-| **文字间距** | 与白色外框间距 8pt |
-
-```objc
-// 仅动画
-[self.view showBgIndicatorLoadingView];
-
-// 带文字
+// 支付风格
 [self.view showBgIndicatorLoadingViewWithTitle:@"支付中..."];
 
-// 隐藏
-[self.view hideIndicatorLoadingView];
-```
-
-#### 11.1.5 静态骨架图（`showSkeletonScreenView`）
-
-用于页面首次加载时展示静态骨架占位图，给用户即时反馈。
-
-| 属性 | 值 |
-|------|-----|
-| **类型** | 静态 UIImage |
-| **适配** | iPad 自动等比缩放填充，iPhone 原图显示 |
-| **缩放方式** | `SDImageScaleModeFill`（后台线程异步缩放） |
-
-```objc
+// 静态骨架图
 [self.view showSkeletonScreenViewWithImage:[UIImage imageNamed:@"skeleton_placeholder"]];
-
-// 隐藏
-[self.view hideSkeletonScreenView];
 ```
 
-### 11.2 非 SwiftModule — UIView / UIViewController 分类
-
-**定义位置**：
-- `Classes/CommonModules/CommonUI/Loading/UIView+Loading.h/.m`
-- `Classes/CommonModules/CommonUI/Loading/UIViewController+Loading.h/.m`
-
-`UIViewController+Loading` 将方法直接转发到 `self.view`，接口与 `UIView+Loading` 完全一致。所有 show/hide 方法均通过 Associated Object 关联 `HYLoadingView` 实例，自动管理生命周期。
-
-**关键实现细节**：
-- 所有方法内部强制切回主线程执行（`dispatch_async(dispatch_get_main_queue(), ...)` / `SafetyCallblockOnMain`）
-- Loading 视图通过 `bringSubviewToFront:` 保证始终在最顶层
-- 同一视图多次调用 show 不会重复创建 HYLoadingView 实例
-
-### 11.3 非 SwiftModule — HYShimmerAnimator（扫光动画）
+### 11.2 非 SwiftModule — HYShimmerAnimator（扫光动画）
 
 **定义位置**：`Classes/BaseModules/Utils/HYShimmerAnimator.swift`
 
-基于 `CALayer` + `CAGradientLayer` 实现的扫光效果，用于 VIP 会员卡、订阅卡片等需要视觉吸引力的组件上。
+基于 `CALayer` + `CAGradientLayer` 的扫光效果，用于 VIP 会员卡、订阅卡片等组件。
 
-| 属性 | 默认值 | 说明 |
-|------|--------|------|
-| **动画时长** | 2.0s | 单次扫光持续时间 |
-| **停顿间隔** | 1.0s | 两次扫光之间的停顿 |
-| **图片** | 自定义扫光图 | 通过 `image` 属性注入 |
-| **重复** | 无限循环 | — |
-
-**技术实现**：
-- 扫光图片宽度为父视图 2 倍，水平从左到右平移
-- `containerLayer.masksToBounds = true` 限制扫光范围不溢出
-- 自动监听 App 前后台切换，进入前台自动恢复动画
+| 属性 | 默认值 |
+|------|--------|
+| 动画时长 | 2.0s（单次扫光） |
+| 停顿间隔 | 1.0s（两次扫光之间） |
+| 重复 | 无限循环 |
+| 自动恢复 | 监听 App 前后台切换，进入前台自动恢复 |
 
 ```swift
 let animator = HYShimmerAnimator(targetView: vipCardView)
 animator.image = UIImage(named: "shimmer_light")
-animator.duration = 2.0
 animator.start()
-
-// 停止
 animator.stop()
-
-// 完全移除
-animator.remove()
+animator.remove()  // 完全移除，避免后台消耗 GPU
 ```
 
-### 11.4 非 SwiftModule — 其他 Loading 组件
+### 11.3 非 SwiftModule — 其他 Loading 组件
 
-#### HYRefreshLoadingAnimationView（下拉刷新 Loading）
+| 组件 | 位置 | 规格 | 用途 |
+|------|------|------|------|
+| **HYRefreshLoadingAnimationView** | `Classes/BaseModules/CustomView/HYRefreshControl/` | `refreshLoading.json`，30pt，支持单次/循环 | 下拉刷新 |
+| **HYVideoLoadingView** | `Classes/BaseModules/Player/` | `CAGradientLayer` + `CAShapeLayer` 圆弧旋转，38pt，线宽 2pt，0.3s 淡入淡出 | 视频缓冲（支持显示网速） |
 
-**定义位置**：`Classes/BaseModules/CustomView/HYRefreshControl/HYRefreshLoadingAnimationView.h/.m`
-
-| 属性 | 值 |
-|------|-----|
-| **动画资源** | `refreshLoading.json`（默认，可替换） |
-| **动画尺寸** | 30 × 30 pt |
-| **循环控制** | 支持单次/循环播放 |
-
-```objc
-HYRefreshLoadingAnimationView *loadingView = [[HYRefreshLoadingAnimationView alloc] initWithFrame:CGRectMake(0, 0, 30, 30)];
-[loadingView playLoadingAnimationWithLoopAnimation:YES];
-[loadingView stopLoadingAnimation];
-```
-
-#### HYVideoLoadingView（视频播放器 Loading）
-
-**定义位置**：`Classes/BaseModules/Player/HYVideoLoadingView.h/.m`
-
-| 属性 | 值 |
-|------|-----|
-| **类型** | 圆弧旋转（`CAGradientLayer` + `CAShapeLayer`） |
-| **尺寸** | 38 × 38 pt（intrinsicContentSize） |
-| **线宽** | 2 pt |
-| **动画** | 2π 匀速旋转 + 0.3s 淡入淡出 |
-| **额外功能** | 支持显示网速文字 |
-
-#### HYBookCityPersonalTagContainerLoadingView（书城标签 Loading）
-
-**定义位置**：`Classes/BusinessModules/BookCity/View/Main/Column/Personal/HYBookCityPersonalTagContainerLoadingView.swift`
-
-| 属性 | 值 |
-|------|-----|
-| **动画资源** | `refreshLoading.json` |
-| **动画尺寸** | 30 × 30 pt |
-| **位置** | 父视图水平居中，垂直方向 ×0.7 偏移 |
-
-#### HYCircleProgressView（圆形进度条）
-
-**定义位置**：`Classes/CommonModules/CommonUI/HYCircleProgressView.h/.m`
-
-用于展示确定进度的圆形进度指示器（如章节阅读进度），区别于无限循环的 Loading。
-
-### 11.5 SwiftModule — HYSkeletonView（列表骨架屏）
+### 11.4 SwiftModule — HYSkeletonView（列表骨架屏）
 
 **定义位置**：`Classes/SwiftModules/Base/BaseKit/Sources/BaseUIKit/SkeletonView/HYSkeletonView.swift`
 
-基于第三方库 `SkeletonView` 实现的**泛型 CollectionView 骨架屏**，用于列表数据加载前的占位展示。
-
-| 属性 | 值 |
-|------|-----|
-| **泛型约束** | `Cell: UICollectionViewCell & ReuseIdentifierProtocol` |
-| **骨架颜色** | `.clouds`（默认浅灰），可通过 `color` 属性自定义 |
-| **骨架行数** | 10 行（固定） |
-| **滚动方向** | 垂直 |
-| **itemSize** | 宽度 `SCREEN_WIDTH`，高度 10pt（estimated） |
+基于 `SkeletonView` 库的泛型 CollectionView 骨架屏，用于列表数据加载前的灰色占位条展示。默认 `.clouds` 浅灰色，固定 10 行，垂直滚动，宽度 `SCREEN_WIDTH`。
 
 **使用方式**：
 
-1. 在 Cell 子视图中标记 `isSkeletonable = true`：
+1. Cell 子视图标记 `isSkeletonable = true`
+2. 创建 `HYSkeletonView<YourCell>(frame: .zero)` 并添加到父视图（`didMoveToSuperview` 自动触发展示）
+3. 数据加载完成后 `removeFromSuperview()`
 
-```swift
-// FlowCell.swift 示例
-bookCover.isSkeletonable = true
-bookNameLabel.isSkeletonable = true
-authorLabel.isSkeletonable = true
-descLabel.isSkeletonable = true
-```
-
-2. 创建骨架视图并添加到父视图：
-
-```swift
-let skeletonView = HYSkeletonView<FlowCell>(frame: .zero)
-view.addSubview(skeletonView)
-skeletonView.snp.makeConstraints { make in
-    make.edges.equalToSuperview()
-}
-// 添加到父视图后自动展示骨架（didMoveToSuperview 触发 showSkeleton）
-```
-
-3. 数据加载完成后，移除骨架视图：
-
-```swift
-skeletonView.removeFromSuperview()
-```
-
-**工作原理**：
-- `HYSkeletonView` 内部创建不可滚动的 `SkeletonCollectionView`，同时作为 `dataSource` 和 `SkeletonCollectionViewDataSource`
-- 通过 `fillLabel(view:)` 递归遍历所有 `isSkeletonable = true` 的 UILabel/UITextView，将文本替换为空格（`emptyText`），使 SkeletonView 库自动渲染为灰色占位条
-- `SkeletonAppearance.default.renderSingleLineAsView = true` 确保每行文字渲染为独立的骨架条
-- `collectionView.showSkeleton(usingColor: color)` 在 `didMoveToSuperview()` 时自动触发
-
-### 11.6 SwiftModule — UIComponentLoading（DI 注入式 Loading）
+### 11.5 SwiftModule — UIComponentLoading（DI 注入式 Loading）
 
 **定义位置**：`Classes/SwiftModules/UIComponent/Sources/UIComponent/Components/UIComponentLoading.swift`
 
-通过 Swift DI 系统提供的 Loading 服务，遵循 `UIComponentLoadingProtocol` 协议。使用独立的 `UIWindow`（window level）实现全局覆盖。
+通过 Swift DI 系统提供的 Loading 服务。30pt `refreshLoading.json` 动画 + 52pt 白色圆角框（8pt）+ 16pt Regular 反白文字（间距 8pt），支持 `countDown` 倒计时（格式 `"标题 (Ns)"`）。
 
-| 属性 | 值 |
-|------|-----|
-| **动画资源** | `refreshLoading.json`（通过 `F.refreshLoadingJson` 引用，支持 Lottie 缓存） |
-| **动画尺寸** | 30 × 30 pt |
-| **外框尺寸** | 52 × 52 pt |
-| **外框背景** | `color_bg_container`（白色容器背景） |
-| **外框圆角** | 8 pt（`hyview.layerCornerRadius`） |
-| **文字样式** | 16pt Regular，`color_txt_w_ic_anti`（反白文字），居中 |
-| **文字间距** | 与动画视图间距 8pt（`UIStackView.spacing`） |
-| **倒计时** | 支持 `countDown` 参数，格式 `"标题 (Ns)"`，使用 `PollingTimer` 每秒更新 |
-| **Window 层级** | `UIWindow.Level.alert + AlertModel.AlertLevel.loading.rawValue` |
-
-**两种展示层级**：
-
-| 层级 | 说明 | 使用场景 |
-|------|------|----------|
-| **`.window(_)`** | 创建独立 UIWindow，覆盖在所有页面之上（包括 Alert） | 支付、全局阻塞操作 |
-| **`.controller(_)`** | 添加到指定 ViewController 的 view 上 | 页面级 Loading |
+两种展示层级：**`.window`**（独立 UIWindow，覆盖所有页面）和 **`.controller`**（添加到指定 VC 的 view）。
 
 ```swift
-// 全局 window 级别
 Loading().startLoading(level: .window(()), title: "加载中...", countDown: nil)
-
-// 控制器级别，带 30s 倒计时
-Loading().startLoading(level: .controller(viewController), title: "处理中", countDown: 30)
-
-// 停止
+Loading().startLoading(level: .controller(vc), title: "处理中", countDown: 30)
 Loading().stopLoading()
 ```
 
-### 11.7 Lottie 动画资源清单
+### 11.6 Lottie 动画资源清单
 
-所有 Loading 动画使用 Lottie JSON 格式，存放于 `Classes/SwiftModules/Base/Resource/Sources/ResourceDR/Animation/`：
+存放于 `Classes/SwiftModules/Base/Resource/Sources/ResourceDR/Animation/`：
 
-| 文件名 | 用途 | 说明 |
-|--------|------|------|
-| `loading/refreshLoading.json` | 菊花旋转动画 | 最通用，小尺寸 Loading、下拉刷新、局部 Loading 均使用此文件 |
-| `loading/ficfun_loading.json` | 独角兽动画（白天） | 全屏页面 Loading 的默认动画 |
-| `loading/ficfun_loading_night.json` | 独角兽动画（夜间） | 夜间模式下的独角兽 Loading |
-| `loading/loadingdark.json` | 夜间菊花动画 | 夜间模式下的菊花旋转动画 |
-| `download/downloading_day.json` | 下载动画（白天） | 下载中的进度动画 |
-| `download/downloading_night.json` | 下载动画（夜间） | 夜间模式下的下载动画 |
+| 文件名 | 用途 |
+|--------|------|
+| `loading/refreshLoading.json` | 菊花旋转，最通用（小 Loading、下拉刷新、局部 Loading） |
+| `loading/ficfun_loading.json` | 独角兽（白天），全屏 Loading 默认 |
+| `loading/ficfun_loading_night.json` | 独角兽（夜间） |
+| `loading/loadingdark.json` | 夜间菊花 |
 
-> **注意**：动画资源通过 `OCCallSwiftAdapter` 桥接给 OC 侧使用（`HYAnimationView` 类）。Swift 侧通过 `F.refreshLoadingJson` 等类型安全引用加载，支持 `LottieAnimationCache` 缓存。
+> 动画资源通过 `OCCallSwiftAdapter` 桥接给 OC 侧（`HYAnimationView`）。Swift 侧通过 `F.refreshLoadingJson` 等类型安全引用，支持 `LottieAnimationCache` 缓存。新增资源需同步更新 OC 构造参数和 `ResourceDR.swift` 枚举。
 
-### 11.8 使用原则
+### 11.7 使用原则
 
 #### 场景选择指南
 
-| 场景 | 推荐组件 | 模块 |
-|------|---------|------|
-| **整页首次加载** | `showLoadingView`（独角兽）或 `showSkeletonScreenView`（骨架图） | 非 SwiftModule |
-| **弹窗/卡片内加载** | `showSmallLoadingView` | 非 SwiftModule |
-| **带提示文案的加载** | `showIndicatorLoadingView`（深色框）或 `showBgIndicatorLoadingView`（白色框+蒙层） | 非 SwiftModule |
-| **支付/阻塞操作** | `showBgIndicatorLoadingView` 或 `UIComponentLoading.window` | 非 SwiftModule / SwiftModule |
-| **列表首次加载占位** | `HYSkeletonView`（骨架屏） | SwiftModule |
-| **VIP 卡片扫光** | `HYShimmerAnimator` | 通用 |
-| **下拉刷新** | `HYRefreshLoadingAnimationView` | 非 SwiftModule |
-| **视频缓冲** | `HYVideoLoadingView` | 非 SwiftModule |
-| **确定进度** | `HYCircleProgressView` | 非 SwiftModule |
+| 场景 | 推荐组件 | 模块域 |
+|------|---------|--------|
+| 整页首次加载 | `showLoadingView`（独角兽）或骨架图 | 非 SwiftModule |
+| 弹窗/卡片内加载 | `showSmallLoadingView` | 非 SwiftModule |
+| 带提示文案的加载 | `showIndicatorLoadingView` 或 `showBgIndicatorLoadingView` | 非 SwiftModule |
+| 支付/阻塞操作 | `showBgIndicatorLoadingView` 或 `UIComponentLoading.window` | 非 SwiftModule / SwiftModule |
+| 列表首次加载占位 | `HYSkeletonView` | SwiftModule |
+| VIP 卡片扫光 | `HYShimmerAnimator` | 通用 |
+| 下拉刷新 | `HYRefreshLoadingAnimationView` | 非 SwiftModule |
+| 视频缓冲 | `HYVideoLoadingView` | 非 SwiftModule |
 
 #### 关键约束
 
-- **禁止**在业务代码中直接使用 `LottieAnimationView` 或 `MBProgressHUD` 拼凑 Loading，必须通过上述公共组件
-- Loading 展示/隐藏**必须在主线程**调用，各组件内部已做主线程断言或 dispatch 保护
-- 同一视图避免同时展示多个 Loading，`HYLoadingView` 通过 Associated Object 保证同一视图只有一个实例
-- 骨架屏（`HYSkeletonView`）数据加载完成后**必须移除**（`removeFromSuperview`）
-- `HYShimmerAnimator` 必须在适当时机调用 `stop()` 或 `remove()`，避免后台持续消耗 GPU 资源
-- 新增 Loading 动画资源需同步更新两套引用：OC 侧的 `HYAnimationView` 构造参数和 Swift 侧的 `ResourceDR.swift` 枚举
+- **禁止**在业务代码中直接使用 `LottieAnimationView` 或 `MBProgressHUD` 拼凑 Loading
+- Loading 展示/隐藏**必须在主线程**调用，各组件内部已做保护
+- 同一视图避免同时展示多个 Loading
+- 骨架屏数据加载完成后**必须移除**（`removeFromSuperview`）
+- `HYShimmerAnimator` 必须在适当时机调用 `stop()` 或 `remove()`，避免后台消耗 GPU
 
 ---
 
+
 ## 12. 错误页与空页面规范
 
-项目在不同模块层提供了多套错误页/空页面组件，覆盖 OC 和 Swift 两侧。选用时根据 **所在模块类型** 和 **交互复杂度** 决定：
+项目在 OC 和 Swift 两侧提供了多套错误页/空页面组件，选用时根据所在模块类型和交互复杂度决定：
 
 | 需求场景 | 推荐组件 | 模块域 |
 |----------|---------|--------|
 | 全屏空状态，需刷新按钮 | `HYBaseWarningView` | 非 SwiftModule |
 | 局部空状态，纯图文展示 | `UIView+Empty` | 非 SwiftModule |
 | VC 级别空状态管理 | `UIViewController+Error` | 非 SwiftModule |
-| Swift 页面，4 状态切换（内容/加载/错误/空） | `StatefulViewController` 协议 | SwiftModule |
-| Swift 页面，统一状态视图组件 | `UIComponentStateView`（`StatefulView`） | SwiftModule |
+| Swift 页面，4 状态切换 | `StatefulViewController` 协议 | SwiftModule |
+| Swift 页面，统一状态视图 | `UIComponentStateView`（`StatefulView`） | SwiftModule |
 
 ### 12.1 HYBaseWarningView（非 SwiftModule 通用空状态视图）
 
 **文件位置**：`Classes/CommonModules/CommonUI/EmptyView/HYBaseWarningView.h/.m`
 
-基于 `UIStackView` 纵向布局的空状态视图，通过枚举 `HYWarningShowType`（共 47 种预设类型）驱动图标、文案和按钮样式。
+基于 `UIStackView` 纵向布局（spacing 20pt）的空状态视图，通过枚举 `HYWarningShowType`（共 47 种预设类型）驱动图标、文案和按钮样式。布局结构为 `warningImageView` → `titleLabel` → `button`（可选），StackView 居中于父视图，VC 场景中 centerY 偏移 `(TopMargin - BottomMargin) / 2.0`。
 
-#### 12.1.1 布局结构
+**子视图规格**：
 
-```
-UIStackView (axis = Vertical, spacing = 20pt)
-├── warningImageView    —— 空状态插图
-├── titleLabel          —— 描述文案
-└── button              —— 刷新/操作按钮（可选）
-```
+| 子视图 | 关键属性 |
+|--------|---------|
+| `warningImageView` | `ScaleAspectFit` |
+| `titleLabel` | 16pt Regular，60% 主色透明度，多行居中 |
+| `button` | 1pt 边框 + 20pt 全圆角 + Bold 17pt 主题色 + 水平 50pt 内边距 |
 
-**约束规则**：
-- StackView 相对于父视图居中
-- 在 UIViewController 场景中，centerY 偏移量 = `(TopMargin - BottomMargin) / 2.0`，避免被导航栏遮挡
-- 所有子视图自适应内容高度，宽度由 StackView 统一控制
+**代表性枚举类型**：
 
-#### 12.1.2 各子视图规格
-
-| 子视图 | 属性 | 规格值 |
+| 枚举值 | 场景 | 有按钮 |
 |--------|------|--------|
-| `warningImageView` | contentMode | `ScaleAspectFit` |
-| `titleLabel` | font | 16pt Regular（`UIFont.appleSFUIFontRegular(ofSize: 16)` 等价） |
-| `titleLabel` | textColor | `text_MainColorWithAlpha:0.6`（60% 主色透明度） |
-| `titleLabel` | textAlignment | `NSTextAlignmentCenter` |
-| `titleLabel` | numberOfLines | 0（多行） |
-| `button` | borderWidth | 1pt |
-| `button` | cornerRadius | 20pt（全圆角） |
-| `button` | titleLabel.font | Bold 17pt |
-| `button` | titleColor | 主题色（`text_ThemeColor`） |
-| `button` | contentEdgeInsets | 水平 50pt |
-| `StackView` | spacing | 20pt |
+| `HYWarningShowTypeNoNetwork` | 无网络 | ✅ |
+| `HYWarningShowTypeNoData` | 暂无数据 | ❌ |
+| `HYWarningShowTypeLoadFailed` | 加载失败 | ✅ |
+| `HYWarningShowTypeServerError` | 服务器错误 | ✅ |
+| `HYWarningShowTypeNoNetworkDark` | 无网络（暗黑背景） | ✅ |
 
-**暗黑模式适配**：
-- `HYWarningShowTypeNoNetworkDark` 和 `HYWarningShowTypeNoNetworkNoBtnDark` 等暗黑类型使用浅色文案 `color_text_normal_anti`，适配深色背景
-
-#### 12.1.3 HYWarningShowType 枚举（部分常用类型）
-
-| 枚举值 | 图标资源 | 默认文案 | 有无按钮 |
-|--------|---------|---------|----------|
-| `HYWarningShowTypeNoNetwork` | `warningIcon_no_network` | "似乎没有网络哦\n请检查网络连接" | ✅ |
-| `HYWarningShowTypeNoNetWorkNoBtn` | `warningIcon_no_network` | "似乎没有网络哦\n请检查网络连接" | ❌ |
-| `HYWarningShowTypeNoData` | `warningIcon_no_collection` | "暂无数据" | ❌ |
-| `HYWarningShowTypeNoCollection` | `warningIcon_no_collection` | "暂无收藏" | ❌ |
-| `HYWarningShowTypeNoHistory` | `warningIcon_no_history` | "暂无历史记录" | ❌ |
-| `HYWarningShowTypeNoComment` | `warningIcon_no_comment` | "暂无评论" | ❌ |
-| `HYWarningShowTypeNoSearchResult` | `warningIcon_no_searchresult` | "暂无搜索结果" | ❌ |
-| `HYWarningShowTypeLoadFailed` | `warningIcon_load_failed` | "加载失败" | ✅ |
-| `HYWarningShowTypeServerError` | `warningIcon_server_error` | "服务器开小差了" | ✅ |
-| `HYWarningShowTypeDelete` | `warningIcon_delete` | "内容已删除" | ❌ |
-| `HYWarningShowTypeDeleteByAuthor` | `warningIcon_delete` | "作者已删除" | ❌ |
-| `HYWarningShowTypeNoNetworkDark` | `warningIcon_no_network` | "似乎没有网络哦\n请检查网络连接" | ✅ |
-| ... | ... | ... | ... |
-
-> 完整 47 种类型详见 `HYBaseWarningView.h` 的 `HYWarningShowType` 枚举定义。
-
-#### 12.1.4 代码使用示例
+> 完整 47 种类型详见 `HYBaseWarningView.h`。
 
 ```objc
-// 在 UIViewController 中使用（推荐）
+// VC 中使用（通过 UIViewController+Error 分类）
 [self showEmptyViewWithType:HYWarningShowTypeNoNetwork
-              refreshAction:^{
-    [self reloadData];
-} tapAction:nil];
-
-// 在 UIView 中使用
-[self showEmptyViewWithType:HYWarningShowTypeNoData
-              refreshAction:nil
+              refreshAction:^{ [self reloadData]; }
                   tapAction:nil];
 
 // 动态修改文案
 [self.baseWarningView updateTitle:@"新的提示文案"];
-
-// 隐藏
 [self hideEmptyView];
 ```
 
-#### 12.1.5 关键 API
-
-| API | 说明 |
-|-----|------|
-| `showEmptyViewWithType:refreshAction:tapAction:` | 展示指定类型的空状态视图 |
-| `updateTitle:` | 动态更新标题文案 |
-| `hideEmptyView` | 移除空状态视图 |
-| `baseWarningView` | 只读属性，获取当前 HYBaseWarningView 实例 |
-| `refreshAction` | Block 属性，按钮点击回调 |
-
----
-
 ### 12.2 UIView+Empty / UIViewController+Error（非 SwiftModule 分类扩展）
 
-**文件位置**：
-- `Classes/CommonModules/CommonUI/EmptyView/UIView+Empty.h/.m`
-- `Classes/CommonModules/CommonUI/EmptyView/UIViewController+Error.h/.m`
+**文件位置**：`Classes/CommonModules/CommonUI/EmptyView/`
 
-通过 Objective-C 的 Associated Object 机制为 UIView / UIViewController 提供轻量级的空状态管理能力，无需子类化。
+通过 Associated Object 为 UIView / UIViewController 提供轻量级空状态管理，无需子类化。
 
-#### 12.2.1 UIView+Empty —— 简易空视图
-
-**纯图文展示，无按钮**：
-
-```
-UIImageView (居中，contentMode = ScaleAspectFit)
-UILabel (距 ImageView 下方 20pt，居中对齐)
-```
-
-| 属性 | 规格值 |
-|------|--------|
-| titleLabel.font | 14pt Regular |
-| titleLabel.textColor | `text_MainColorWithAlpha:0.6` |
-| titleLabel.textAlignment | `NSTextAlignmentCenter` |
-| titleLabel.numberOfLines | 0 |
-| ImageView ↔ Label 间距 | 20pt |
-| ImageView 定位 | 父视图水平居中，垂直居中 |
-
-**支持 YYLabel 富文本高亮**：可指定 `highlightText` 和 `highlightColor`，点击高亮文案触发 `hightTapAction`。
+- **UIView+Empty**：简易纯图文空视图（`UIImageView` 居中 + `UILabel` 下方 20pt，14pt Regular 60% 黑色多行居中），支持 YYLabel 富文本高亮交互
+- **UIViewController+Error**：在 `UIView+Empty` 基础上封装，内部自动将 `HYBaseWarningView` 添加到 VC 的 view 上，重复调用自动替换旧视图
 
 ```objc
 // 简易空视图
 [self addEmptyViewWithImageName:@"img_empty_default" title:@"暂无数据"];
 
-// 带高亮交互的空视图
+// 带高亮交互
 [self addEmptyViewWithImageName:@"img_empty_default"
                           title:@"还没有记录，去书城逛逛吧"
                   highlightText:@"书城"
                  highlightColor:[UIColor blueColor]
                         offsetY:0
-                 hightTapAction:^{
-    [self goToBookCity];
-}];
+                 hightTapAction:^{ [self goToBookCity]; }];
 
-// 移除
 [self removeEmptyView];
 ```
-
-#### 12.2.2 UIViewController+Error —— VC 级空状态管理
-
-在 `UIView+Empty` 基础上封装，直接为 UIViewController 提供 `showEmptyViewWithType:refreshAction:tapAction:` 等方法，内部自动将 `HYBaseWarningView` 添加到 VC 的 view 上。
-
-```objc
-// 展示带刷新按钮的错误页
-[self showEmptyViewWithType:HYWarningShowTypeLoadFailed
-              refreshAction:^{
-    [self loadData];
-} tapAction:nil];
-
-// 展示无数据空页
-[self showEmptyViewWithType:HYWarningShowTypeNoData
-              refreshAction:nil
-                  tapAction:nil];
-
-// 隐藏
-[self hideEmptyView];
-```
-
-默认背景色为白色。空视图基于 Associated Object 持有，重复调用 `showEmptyViewWithType:` 会自动替换旧视图。
-
----
 
 ### 12.3 StatefulViewController 协议体系（SwiftModule）
 
 **文件位置**：`Classes/SwiftModules/Base/BaseKit/Sources/BaseUIKit/StatefulViewController/`
 
-一套 Swift 协议驱动的四状态视图管理方案，适用于需要 **内容 / 加载 / 错误 / 空** 四种状态平滑切换的页面。
+Swift 协议驱动的四状态视图管理方案，适用于需要 **内容 / 加载 / 错误 / 空** 四种状态平滑切换的页面。通过 `ViewStateMachine` 管理状态切换，动画为 UIView 0.3s 交叉淡入淡出，串行队列保证线程安全。
 
-#### 12.3.1 状态定义
-
-```swift
-public enum StatefulViewControllerState {
-    case content   // 正常内容
-    case loading   // 加载中
-    case error     // 加载失败
-    case empty     // 数据为空
-}
-```
-
-#### 12.3.2 核心协议
-
-```swift
-public protocol StatefulViewController: AnyObject {
-    var currentState: StatefulViewControllerState { get set }
-    var loadingView: UIView? { get set }
-    var errorView: UIView? { get set }
-    var emptyView_s: UIView? { get set }  // 避免与 UIViewController.emptyView 冲突
-
-    func startLoading()
-    func endLoading()
-    func hasContent() -> Bool
-    func transitionViewStates(previous: StatefulViewControllerState, current: StatefulViewControllerState)
-}
-```
-
-#### 12.3.3 ViewStateMachine 过渡动画
-
-默认实现使用 `ViewStateMachine` 管理状态切换：
-
-| 属性 | 值 |
-|------|-----|
-| 过渡动画 | UIView 0.3s 交叉淡入淡出（fade） |
-| 调度队列 | 串行队列（线程安全） |
-| 占位视图内边距 | 支持 `StatefulPlaceholderView` 自定义 insets |
-| 约束方式 | Auto Layout VFL |
-
----
+协议要求提供 `loadingView`、`errorView`、`emptyView_s` 三个占位视图属性，以及 `hasContent()` 判定方法。状态切换时自动处理占位视图的添加/移除和过渡动画。
 
 ### 12.4 StatefulView 统一状态视图组件（SwiftModule）
 
 **文件位置**：`Classes/SwiftModules/UIComponent/Sources/UIComponent/Components/UIComponentStateView.swift`
 
-**协议定义**：`Classes/SwiftModules/Base/Interface/Sources/Proto/UIComponentModule/UIComponentModuleProtocol.swift`
+`UIComponentStateView`（即 `StatefulView`）是 SwiftModule 的统一状态视图组件，UIStackView 纵向布局（spacing 20pt）：插图（Lottie 或静态图）+ 描述文案 + 刷新按钮。
 
-`StatefulView`（即 `UIComponentStateView`）是 SwiftModule 中统一的状态视图组件，通过 UIComponent 模块对外暴露协议接口。
+**关键规格**：
 
-#### 12.4.1 布局结构
+| 子视图 | 规格 |
+|--------|------|
+| imageView | 宽度 = 父视图 × 0.5 |
+| animationView | 宽度 = 父视图 × 1/3 |
+| desLabel | 16pt Regular，`color_txt_w_ic_secondary`，多行，最大宽度 `SCREEN_WIDTH - 92pt` |
+| refreshButton | 44pt 全圆角，宽度 `SCREEN_WIDTH - 150pt` |
 
-```
-UIStackView (axis = Vertical, spacing = 20pt, alignment = Center)
-├── imageView / animationView    —— 插图（支持静态图或 Lottie 动画）
-├── desLabel                     —— 描述文案
-└── refreshButton               —— 刷新按钮（可选）
-```
+**按钮样式**：实心（`.normal`：`#B857FF` 紫底白字）和边框（`.border`：紫边紫字透明底）。
 
-#### 12.4.2 资源类型
-
-```swift
-public enum StateViewResourceType {
-    case animation(HYFileResource)   // Lottie 动画资源
-    case image(HYImageResource)      // 静态图片资源
-}
-```
-
-#### 12.4.3 各子视图规格
-
-| 子视图 | 属性 | 规格值 |
-|--------|------|--------|
-| imageView | 宽度比例 | 父视图宽度的 **0.5 倍** |
-| animationView | 宽度比例 | 父视图宽度的 **1/3 倍** |
-| desLabel | font | 16pt Regular |
-| desLabel | textColor | `color_txt_w_ic_secondary` |
-| desLabel | numberOfLines | 0（多行） |
-| desLabel | 最大宽度 | `SCREEN_WIDTH - 92pt`（左右各 46pt 边距），iPhone SE 等小屏为 40pt |
-| refreshButton | height | 44pt |
-| refreshButton | cornerRadius | 全圆角（22pt） |
-| refreshButton | 宽度 | `SCREEN_WIDTH - 150pt` |
-| StackView | spacing | 20pt |
-
-#### 12.4.4 按钮样式（StateViewRefreshType）
-
-| 样式 | 枚举值 | 背景色 | 文字色 | 边框 |
-|------|--------|--------|--------|------|
-| 实心（Normal） | `.normal` / rawValue 0 | `#B857FF`（紫色） | 白色 | 无 |
-| 边框（Border） | `.border` / rawValue 1 | 透明/白色 | `#B857FF`（紫色） | 紫色 1pt |
-
-#### 12.4.5 协议接口
-
-```swift
-public protocol ControllerStateViewProtocol {
-    var refreshEvent: PublishSubject<Void> { get }       // RxSwift 刷新事件
-    var backgroundViewEdgeInsets: UIEdgeInsets { get set } // 背景视图内边距
-    var contentOffset: CGPoint { get set }                // 内容偏移量
-    var imageViewSizeProportion: CGFloat { get set }      // 图片宽度比例（默认 0.5）
-    var animationViewSizeProportion: CGFloat { get set }  // 动画宽度比例（默认 1/3）
-}
-
-public protocol UIComponentStateViewProtocol {
-    func staticStateView() -> ControllerStateViewProtocol   // 静态状态页
-    func animationLoadingView() -> ControllerStateViewProtocol // Lottie 加载页
-    func staticEmptyView() -> ControllerStateViewProtocol    // 静态空页面
-}
-```
-
-#### 12.4.6 使用示例
-
-```swift
-// 在 StatefulViewController 中使用
-class BookCityMainController: UIViewController, StatefulViewController {
-    var loadingView: UIView? = {
-        let view = UIComponentStateView.animationLoadingView()
-        return view as? UIView
-    }()
-
-    var emptyView_s: UIView? = {
-        let view = UIComponentStateView.staticEmptyView()
-        // 配置描述文案等
-        return view as? UIView
-    }()
-
-    var errorView: UIView? = {
-        let view = UIComponentStateView.staticStateView()
-        // 配置刷新按钮
-        return view as? UIView
-    }()
-}
-```
-
----
+遵循 `ControllerStateViewProtocol`，提供 RxSwift `refreshEvent`、`contentOffset`、`imageViewSizeProportion` 等配置项。通过 `UIComponentStateViewProtocol` 工厂方法创建：`staticStateView()`、`animationLoadingView()`、`staticEmptyView()`。
 
 ### 12.5 使用原则
 
-- **模块边界清晰**：非 SwiftModule（OC）使用 `HYBaseWarningView` / `UIView+Empty` / `UIViewController+Error`；SwiftModule 使用 `StatefulViewController` 协议 + `StatefulView` 组件
-- **生命周期管理**：空视图通过 Associated Object 持有，页面销毁时自动释放；`StatefulView` 通过 `ViewStateMachine` 管理切换，避免手动 add/remove 导致的层级混乱
-- **颜色适配**：`HYBaseWarningView` 的按钮和文案颜色使用项目 ColorSet 方法（`text_ThemeColor`、`text_MainColorWithAlpha:`），暗黑模式自动适配
-- **禁止**在非 SwiftModule 中引用 `StatefulView` 或 `StatefulViewController`，也**禁止**在 SwiftModule 中绕过协议直接使用 `HYBaseWarningView`
-- 空状态视图展示时应**禁用**底层滚动视图的 scrollEnabled，隐藏时恢复
-- 刷新按钮回调中应**先隐藏空视图再发起请求**，避免网络返回前重复展示
+- **模块边界清晰**：OC 侧用 `HYBaseWarningView` / `UIView+Empty` / `UIViewController+Error`；Swift 侧用 `StatefulViewController` 协议 + `StatefulView`
+- **禁止**跨模块域引用（OC 不引用 `StatefulView`，Swift 不绕过协议直接用 `HYBaseWarningView`）
+- 空视图展示时应**禁用**底层滚动视图的 `scrollEnabled`，隐藏时恢复
+- 刷新回调中应**先隐藏空视图再发起请求**，避免重复展示
+- 颜色使用项目 ColorSet 方法，暗黑模式自动适配
 
 ---
+
 
 ## 13. 多语言与国际化
 
@@ -2118,13 +1690,7 @@ constraint.identifier = "avatar-top"
 
 ## 17. 第三方库约定
 
-- 所有依赖通过 **Swift Package Manager** 统一管理。
-- 当前项目允许的第三方库：
-  - **布局**：SnapKit
-  - **图片加载**：Kingfisher
-  - **资源代码生成**：SwiftGen（生成颜色、图片、字体的代码引用）
-  - **Lottie**（动画，需审批）
-- 引入新库必须经过团队讨论并记录在本规范中。
+- 所有依赖通过 **CocoaPods** 和 **Swift Package Manager** 统一管理。
 - **禁止**在业务代码中直接调用未封装的第三方库核心 API；需在 `Helpers` 或 `Extensions` 中二次封装，以降低耦合。
 
 > **本规范由 StaryReader iOS 团队制定并维护，任何修改需通过 MR 合入。**  
