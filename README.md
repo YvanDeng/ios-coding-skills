@@ -2,6 +2,19 @@
 
 Claude Code skills for iOS development, designed for StaryReader project conventions.
 
+## Structure
+
+```
+ios-coding-skills/
+├── docs/
+│   └── ios-ui-code-standard.md    # Shared UI code standard (both skills depend on this)
+├── oc-to-swift/
+│   └── SKILL.md
+├── figma-to-ios-uikit-code/
+│   └── SKILL.md
+└── README.md
+```
+
 ## Skills
 
 ### figma-to-ios-uikit-code
@@ -27,20 +40,22 @@ Convert Objective-C code to Swift in the StaryReader project. Performs deep anal
 
 ## Installation
 
-Copy the desired skill folder to your Claude Code skills directory:
+Both skills share the UI code standard in `docs/`. Install all three pieces to your Claude Code skills directory:
 
 ```bash
 # For user-level skills (available across all projects)
 cp -r oc-to-swift ~/.claude/skills/
 cp -r figma-to-ios-uikit-code ~/.claude/skills/
+cp -r docs ~/.claude/skills/
 
 # For project-level skills
 cp -r oc-to-swift <project>/.claude/skills/
 cp -r figma-to-ios-uikit-code <project>/.claude/skills/
+cp -r docs <project>/.claude/skills/
 ```
 
 ## Dependencies
 
 - `figma-to-ios-uikit-code` requires Figma MCP server configured
-- `oc-to-swift` depends on `figma-to-ios-uikit-code/docs/ios-ui-code-standard.md`
+- Both skills reference `../docs/ios-ui-code-standard.md` — **the `docs/` folder must be placed alongside the skill folders**
 - Both skills are tailored for the StaryReader (Dreame) project conventions
