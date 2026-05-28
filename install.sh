@@ -62,8 +62,8 @@ fi
 # 获取脚本所在目录（仓库根目录）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 需要安装的目录
-SKILL_DIRS=("figma-to-ios-uikit-code" "oc-to-swift" "docs")
+# 需要安装的 Skill（位于 skills/ 子目录中）
+SKILL_NAMES=("figma-to-ios-uikit-code" "oc-to-swift")
 
 echo "============================================"
 echo "  iOS Coding Skills 安装脚本"
@@ -75,11 +75,12 @@ echo ""
 # 创建目标目录
 mkdir -p "$TARGET_DIR"
 
-# 逐项安装
 INSTALL_COUNT=0
-for dir in "${SKILL_DIRS[@]}"; do
-    SRC="${SCRIPT_DIR}/${dir}"
-    DST="${TARGET_DIR}/${dir}"
+
+# -------- 安装 Skills --------
+for name in "${SKILL_NAMES[@]}"; do
+    SRC="${SCRIPT_DIR}/skills/${name}"
+    DST="${TARGET_DIR}/${name}"
 
     if [[ ! -d "$SRC" ]]; then
         echo -e "${RED}✗ 源目录不存在: ${SRC}${NC}"
@@ -87,29 +88,65 @@ for dir in "${SKILL_DIRS[@]}"; do
         exit 1
     fi
 
-    # 删除旧目录（如果存在）
     if [[ -d "$DST" ]]; then
-        echo -e "${YELLOW}  ⚠ 覆盖已存在的: ${dir}${NC}"
+        echo -e "${YELLOW}  ⚠ 覆盖已存在的: ${name}${NC}"
         rm -rf "$DST"
     fi
 
     cp -r "$SRC" "$DST"
-    echo -e "${GREEN}  ✓ 已安装: ${dir}${NC}"
+
+    # 修正规范文档引用路径：仓库中 skills/X/ → ../../docs/，安装后 X/ → ../docs/
+    sed -i '' 's|../../docs/|../docs/|g' "${DST}/SKILL.md" 2>/dev/null || true
+
+    echo -e "${GREEN}  ✓ 已安装: ${name}${NC}"
     INSTALL_COUNT=$((INSTALL_COUNT + 1))
 done
 
+# -------- 安装公共文档 --------
+DOCS_SRC="${SCRIPT_DIR}/docs"
+DOCS_DST="${TARGET_DIR}/docs"
+
+if [[ ! -d "$DOCS_SRC" ]]; then
+    echo -e "${RED}✗ 源目录不存在: ${DOCS_SRC}${NC}"
+    exit 1
+fi
+
+if [[ -d "$DOCS_DST" ]]; then
+    echo -e "${YELLOW}  ⚠ 覆盖已存在的: docs${NC}"
+    rm -rf "$DOCS_DST"
+fi
+
+cp -r "$DOCS_SRC" "$DOCS_DST"
+echo -e "${GREEN}  ✓ 已安装: docs${NC}"
+INSTALL_COUNT=$((INSTALL_COUNT + 1))
+
+# -------- 完成 --------
 echo ""
 echo -e "${GREEN}安装完成！已安装 ${INSTALL_COUNT} 项到:${NC}"
 echo "  ${TARGET_DIR}"
 echo ""
 
 # 检查安装结果
-if [[ -f "${TARGET_DIR}/docs/ios-ui-code-standard.md" ]]; then
-    echo "Skill 列表:"
-    echo "  - figma-to-ios-uikit-code"
-    echo "  - oc-to-swift"
+ALL_OK=true
+for name in "${SKILL_NAMES[@]}"; do
+    if [[ ! -f "${TARGET_DIR}/${name}/SKILL.md" ]]; then
+        echo -e "${RED}  ✗ 缺失: ${name}/SKILL.md${NC}"
+        ALL_OK=false
+    fi
+done
+if [[ ! -f "${TARGET_DIR}/docs/ios-ui-code-standard.md" ]]; then
+    echo -e "${RED}  ✗ 缺失: docs/ios-ui-code-standard.md${NC}"
+    ALL_OK=false
+fi
+
+if $ALL_OK; then
+    echo "已安装的 Skill:"
+    for name in "${SKILL_NAMES[@]}"; do
+        echo "  - ${name}"
+    done
 else
-    echo -e "${RED}警告: 规范文档未正确安装，Skill 可能无法正常工作${NC}"
+    echo -e "${RED}部分文件安装失败，请检查。${NC}"
+    exit 1
 fi
 
 echo ""

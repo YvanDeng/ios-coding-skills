@@ -20,7 +20,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, LSP]
 ## 执行流程
 
 ### 第 1 步：读取规范
-- 使用 `Read` 读取本 Skill 引用的 iOS UI 代码规范：`../docs/ios-ui-code-standard.md`。
+- 使用 `Read` 读取本 Skill 引用的 iOS UI 代码规范：`../../docs/ios-ui-code-standard.md`。
 - 重点理解 Swift 侧的约定：
   - 颜色管理（6.2）：`UIColor(resource: C.xxx)` / `UIColor.color_xxx` / `UIColor(hex:)`
   - 字体管理（7.2）：`UIFont.hyfont.systemXxxFont(size:)`
@@ -221,7 +221,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, LSP]
 - **保留注释**：原 OC 代码中的业务逻辑注释（解释"为什么"的）保留并转为中文注释。
 - **不保留无用注释**：删除原 OC 中被注释掉的废弃代码块、过时的 TODO。
 
-**转换完成后，对照规范做自查**：重新读取 `../docs/ios-ui-code-standard.md`，逐条检查：
+**转换完成后，对照规范做自查**：重新读取 `../../docs/ios-ui-code-standard.md`，逐条检查：
 
 - [ ] UI 元素是否使用 `private let` 声明（非 UICollectionView 不得使用 `lazy var`）
 - [ ] 字体/颜色/圆角/对齐等样式是否全部在 `viewInit()` 中配置
@@ -269,7 +269,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, LSP]
 编译通过后，**自动执行**以下经验沉淀，无需用户介入：
 
 1. **更新 SKILL.md 映射表**：将本次转换中新发现的 OC→Swift 语法差异、方法签名变化、类型桥接陷阱等，补充到第 3 节对应的映射表和 3.9 陷阱表中。
-2. **提取 UI 编码规范候选**：从转换后的 Swift 代码中识别出**可复用的通用 UI 模式**（如多按钮互斥选择、圆角+阴影组合、等宽横向排列等），列出候选清单供用户确认后，再写入 `../docs/ios-ui-code-standard.md`。
+2. **提取 UI 编码规范候选**：从转换后的 Swift 代码中识别出**可复用的通用 UI 模式**（如多按钮互斥选择、圆角+阴影组合、等宽横向排列等），列出候选清单供用户确认后，再写入 `../../docs/ios-ui-code-standard.md`。
 
 **第 2 点的执行约束**：
 - 只列候选，**不直接写入 UI 规范文档**，必须等用户确认

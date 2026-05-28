@@ -21,7 +21,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, mcp__figma_get_file, mcp__f
 ## 执行流程（全程由 AI 自主分析推进）
 
 ### 第 1 步：读取规范
-- 使用 `Read` 读取 iOS UI 代码规范：`../docs/ios-ui-code-standard.md`。
+- 使用 `Read` 读取 iOS UI 代码规范：`../../docs/ios-ui-code-standard.md`。
 - 完全理解其约定的命名、布局、颜色、字体、组件复用等全部条目。
 - 若该文件缺失，**立即中断**并提示用户重新安装本 Skill。
 
@@ -81,7 +81,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, mcp__figma_get_file, mcp__f
 
 ## 错误处理
 - Figma MCP 工具报错：提示用户检查 Figma 访问令牌及网络。
-- 规范文档缺失：提示用户重新安装 Skill，确保 `../docs/ios-ui-code-standard.md` 存在。
+- 规范文档缺失：提示用户重新安装 Skill，确保 `../../docs/ios-ui-code-standard.md` 存在。
 - 设计过于复杂导致无法完全自动化：完成基础部分，在代码中标记 `#warning TODO: 需手动实现的部分`，并给出详细建议。
 - 若在扫描现有代码时发现多个高度相似的候选文件，或无法确定最佳匹配，将选项列出并请用户抉择，而不是盲目猜测。
 
