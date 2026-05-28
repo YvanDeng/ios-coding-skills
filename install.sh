@@ -6,6 +6,7 @@
 #   ./install.sh                        # 安装为用户级 Skill（~/.claude/skills/）
 #   ./install.sh -p /path/to/project    # 安装为项目级 Skill
 #   ./install.sh --project /path/to/project
+#   ./install.sh --plugin               # 安装为 Claude Code 插件（~/.claude/plugins/）
 #
 # 依赖: 无。仅需 bash 和 cp。
 
@@ -22,15 +23,18 @@ print_usage() {
     echo ""
     echo "选项:"
     echo "  -p, --project <路径>   安装为项目级 Skill，指定项目根目录路径"
+    echo "  --plugin               安装为 Claude Code 插件（~/.claude/plugins/）"
     echo "  -h, --help             显示此帮助信息"
     echo ""
     echo "示例:"
     echo "  $0                          # 安装到 ~/.claude/skills/"
     echo "  $0 -p ~/Downloads/StaryReader  # 安装到项目 StaryReader"
+    echo "  $0 --plugin                 # 安装为 Claude Code 插件"
 }
 
 # 解析参数
 TARGET_DIR=""
+USE_PLUGIN=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -p|--project)
@@ -41,6 +45,10 @@ while [[ $# -gt 0 ]]; do
             fi
             TARGET_DIR="$2/.claude/skills"
             shift 2
+            ;;
+        --plugin)
+            USE_PLUGIN=true
+            shift
             ;;
         -h|--help)
             print_usage
@@ -54,21 +62,70 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# 默认用户级安装
-if [[ -z "$TARGET_DIR" ]]; then
-    TARGET_DIR="$HOME/.claude/skills"
-fi
-
 # 获取脚本所在目录（仓库根目录）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# 需要安装的 Skill（位于 skills/ 子目录中）
-SKILL_NAMES=("figma-to-ios-uikit-code" "oc-to-swift")
 
 echo "============================================"
 echo "  iOS Coding Skills 安装脚本"
 echo "============================================"
 echo ""
+
+# -------- 插件模式 --------
+if $USE_PLUGIN; then
+    PLUGIN_NAME="ios-coding-skills"
+    PLUGIN_DST="${HOME}/.claude/plugins/${PLUGIN_NAME}"
+
+    echo "安装模式: Claude Code 插件"
+    echo "安装目标: ${PLUGIN_DST}"
+    echo ""
+
+    if [[ -d "$PLUGIN_DST" ]]; then
+        echo -e "${YELLOW}  ⚠ 覆盖已存在的插件${NC}"
+        rm -rf "$PLUGIN_DST"
+    fi
+
+    mkdir -p "$PLUGIN_DST"
+
+    # 复制插件所需文件（.claude-plugin/ + skills/ + docs/）
+    cp -r "${SCRIPT_DIR}/.claude-plugin" "$PLUGIN_DST/"
+    cp -r "${SCRIPT_DIR}/skills" "$PLUGIN_DST/"
+    cp -r "${SCRIPT_DIR}/docs" "$PLUGIN_DST/"
+
+    echo -e "${GREEN}  ✓ 已安装插件: ${PLUGIN_NAME}${NC}"
+    echo ""
+
+    # 校验
+    if [[ -f "${PLUGIN_DST}/.claude-plugin/plugin.json" ]]; then
+        echo "插件内容:"
+        echo "  - .claude-plugin/plugin.json"
+        echo "  - skills/figma-to-ios-uikit-code"
+        echo "  - skills/oc-to-swift"
+        echo "  - docs/ios-ui-code-standard.md"
+    else
+        echo -e "${RED}插件安装失败，请检查。${NC}"
+        exit 1
+    fi
+
+    echo ""
+    echo "安装完成后，在 Claude Code 中运行以下命令启用插件："
+    echo "  /plugin install ${PLUGIN_NAME}"
+    echo ""
+    echo "使用示例："
+    echo "  把这个 Figma 设计稿应用一下：https://www.figma.com/design/xxx"
+    echo "  把 HYUserProfileView.m 转成 Swift"
+    exit 0
+fi
+
+# -------- 传统 Skill 模式 --------
+# 默认用户级安装
+if [[ -z "$TARGET_DIR" ]]; then
+    TARGET_DIR="$HOME/.claude/skills"
+fi
+
+# 需要安装的 Skill（位于 skills/ 子目录中）
+SKILL_NAMES=("figma-to-ios-uikit-code" "oc-to-swift")
+
+echo "安装模式: 传统 Skill（直接复制）"
 echo "安装目标: ${TARGET_DIR}"
 echo ""
 

@@ -1,0 +1,17 @@
+{
+  "name": "ios-coding-skills",
+  "version": "1.0.0",
+  "description": "iOS 开发 Skill 集合：Figma 设计稿转 UIKit 代码、Objective-C 转 Swift，严格遵循 StaryReader 项目规范。",
+  "author": {
+    "name": "YvanDeng",
+    "url": "https://github.com/YvanDeng"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/YvanDeng/ios-coding-skills",
+  "repository": "https://github.com/YvanDeng/ios-coding-skills",
+  "keywords": ["ios", "uikit", "swift", "objective-c", "figma", "code-generation"],
+  "skills": [
+    "./skills/figma-to-ios-uikit-code",
+    "./skills/oc-to-swift"
+  ]
+}
