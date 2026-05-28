@@ -67,6 +67,8 @@
 
 ### 2.1 顶层结构
 
+**禁止**改动顶层目录结构，如有必要，需要经过团队评审
+
 ```
 StaryReader/
 ├── Classes/                          # 主源码目录
@@ -84,6 +86,8 @@ StaryReader/
 ```
 
 ### 2.2 四层架构
+
+新增模块**必须**根据以下目录结构放入合适的位置
 
 | 层级 | 目录 | 定位 | 示例 |
 |------|------|------|------|
@@ -118,7 +122,7 @@ Classes/SwiftModules/
 └── {FeatureModule}/Sources/           # 各功能模块
 ```
 
-新模块必须通过 `Base/Interface/Sources/Proto/` 下的协议暴露接口，禁止直接引用实现类。
+新模块**必须**通过 `Base/Interface/Sources/Proto/` 下的协议暴露接口，禁止直接引用实现类。
 
 ### 2.5 公共基类位置
 
@@ -1538,6 +1542,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 ```
 
 **存放位置**：多语言图片直接放入对应模块的 Assets.xcassets 中，通过 `_语言码` 后缀区分版本：
+
 - `detail_authorized` — 默认/英文版
 - `detail_authorized_ar` — 阿拉伯语版
 - `detail_authorized_de` — 德语版
@@ -1578,13 +1583,12 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 ## 14. 动画与交互
 
-- 简单动画使用 `UIView.animate(withDuration:...)` 或 `UIViewPropertyAnimator`。
+- 简单动画**推荐**使用 `UIView.animate(withDuration:...)` 或 `UIViewPropertyAnimator`。
 - 动画时长参考：
   - 微交互（按钮点击反馈）：`0.15s - 0.2s`
   - 页面转场 / 展示：`0.3s`
   - 复杂入场效果：`0.4s - 0.5s`
-- 复杂动画可引入 **Lottie**，但必须经过团队评审。
-- 禁止在主线程执行耗时计算；动画帧率需保持 60fps。
+- 复杂动画根据设计同学给出的 Lottie 动画实现。
 
 ---
 
@@ -1594,7 +1598,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 ### 15.1 iPad 适配
 
-使用全局常量 `isIPad`（定义于 `SwiftMacro.swift`）判断当前设备：
+**必须**使用全局常量 `isIPad`（定义于 `SwiftMacro.swift`）判断当前设备：
 
 ```swift
 // ✅ 正确：使用全局常量
@@ -1610,20 +1614,10 @@ if isIPad {
 - **屏幕尺寸**：`SCREEN_WIDTH` / `SCREEN_HEIGHT` 已自动反映当前设备实际尺寸，无需额外判断
 - **等比缩放**：`SCREEN_WIDTH_DIFF_RATIO` 已内置 iPad 适配（iPad 以 768pt 为基准、iPhone 以 375pt 为基准），需要等比缩放的长度值直接乘以该比例
 - **相对比例优先**：布局中尽量使用相对于父视图的比例（如 `width.equalToSuperview().multipliedBy(0.8)`）而非硬编码固定 pt 值
-- **可调节区域**：iPad 上部分视图（如阅读器正文、弹窗）限制最大宽度以保持可读性，使用 `min(SCREEN_WIDTH, 最大宽度)` 模式
-- **尺寸变化监听**：iPad 支持分屏/侧拉，视图必须能响应 `viewWillTransition(to:with:)` 中尺寸变化，使用 `layoutSubviews` 或 Auto Layout 自适应
-
-```swift
-// ✅ 正确：限制最大宽度保持可读性
-let contentWidth = min(SCREEN_WIDTH, 600)
-
-// ✅ 正确：根据设备调整比例
-let ratio = isIPad ? 0.55 : 0.8
-```
 
 ### 15.2 刘海屏 / 全面屏适配
 
-使用全局常量 `IS_BAND_SCREEN`（定义于 `SwiftMacro.swift`）判断全面屏机型：
+**必须**使用全局常量 `IS_BAND_SCREEN`（定义于 `SwiftMacro.swift`）判断全面屏机型：
 
 ```swift
 // 安全区域常量已自动适配（SwiftMacro.swift 全局定义）
@@ -1637,7 +1631,7 @@ view.snp.makeConstraints { make in
 
 ### 15.3 系统版本适配
 
-项目最低部署 iOS 13.0，涉及以下关键 API 分界点：
+项目涉及以下关键 API 分界点：
 
 | API 分界 | 版本 | 影响 |
 |----------|------|------|
@@ -1665,27 +1659,16 @@ if #available(iOS 13.0, *) {
 }
 ```
 
-**常见需版本检查的场景**：
-- `UIColor.systemBackground` 等语义色（iOS 13+），iOS 12 需使用硬编码色值
-- `UISceneDelegate` 相关 API（iOS 13+）
-- `SF Symbols` 图标（iOS 13+）
-- `UICollectionViewCompositionalLayout`（iOS 13+）
-
-**原则**：能用 Auto Layout + SnapKit 解决的问题不依赖特定系统版本；版本适配复杂度应封装在 `SwiftMacro.swift` 或扩展方法中，业务层直接调用封装后的 API。
+**原则**：版本适配复杂度应封装在 `SwiftMacro.swift` 或扩展方法中，业务层直接调用封装后的 API。
 
 ---
 
-## 16. 性能与调试
+## 16. 性能
 
-- 列表和集合视图必须使用 Cell 复用，并正确设置 `estimatedRowHeight` 以启用自定高度。
-- 避免视图层级过深（一般不超过 10 层），复杂页面考虑用 `CALayer` 或异步绘制优化。
-- 图像解码在后台线程进行，大图使用降采样策略。
-- 调试约束冲突时，给约束设置标识：
-```swift
-constraint.identifier = "avatar-top"
-```
-- 使用 `Instruments` 的 `Core Animation` 和 `Time Profiler` 定期检查。
-
+- 列表和集合视图**必须**复用 Cell ，**推荐**设置 `estimatedRowHeight` 以启用自定高度。
+- **避免**视图层级过深（一般不超过 10 层），复杂页面考虑用 `CALayer` 或异步绘制优化。
+- 图像解码**必须**在后台线程进行，大图使用降采样策略。
+- **禁止**在主线程执行耗时计算。
 ---
 
 ## 17. 第三方库约定
