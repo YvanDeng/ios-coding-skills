@@ -1,6 +1,6 @@
 # iOS UI 代码规范 (Dreame阅读项目)
 
-> **版本**：1.1  
+> **版本**：1.2  
 > **适用范围**：本项目所有使用 UIKit 进行界面开发的模块。  
 > **核心原则**：一致性、可读性、可维护性、可复用性。  
 > 任何设计稿到代码的转化都必须严格遵循本规范。
@@ -19,11 +19,12 @@
 - [8. 字体管理](#8-字体管理)
 - [9. 图片资源管理](#9-图片资源管理)
 - [10. 组件复用与基类](#10-组件复用与基类)
-- [11. 多语言与国际化](#11-多语言与国际化)
-- [12. 动画与交互](#12-动画与交互)
-- [13. 机型与系统版本适配](#13-机型与系统版本适配)
-- [14. 性能与调试](#14-性能与调试)
-- [15. 第三方库约定](#15-第三方库约定)
+- [11. 加载动画规范](#11-加载动画规范)
+- [12. 多语言与国际化](#12-多语言与国际化)
+- [13. 动画与交互](#13-动画与交互)
+- [14. 机型与系统版本适配](#14-机型与系统版本适配)
+- [15. 性能与调试](#15-性能与调试)
+- [16. 第三方库约定](#16-第三方库约定)
 
 ---
 
@@ -1191,7 +1192,356 @@ UIView.animate(withDuration: 0.2, animations: {
 
 ---
 
-## 11. 多语言与国际化
+## 11. 加载动画规范
+
+项目有两套并行的加载动画体系，分别服务于非 SwiftModule（OC）和 SwiftModule。加载动画类型包括：**Lottie 动画 Loading**、**静态骨架图**、**Shimmer 扫光**、**列表骨架屏** 和 **视频圆弧 Loading**。
+
+### 11.1 非 SwiftModule — HYLoadingView（核心加载组件）
+
+**定义位置**：`Classes/CommonModules/CommonUI/Loading/HYLoadingView.h/.m`
+
+项目中**统一的加载动画组件**，内部分为独角兽动画（全屏页面级）和菊花动画（局部组件级）两种 Lottie 资源。通过 `UIView+Loading` 和 `UIViewController+Loading` 分类提供便捷调用。
+
+> **规则**：非 SwiftModule 模块中所有 Loading 需求**必须通过 HYLoadingView 或其分类方法**实现，禁止自行创建 Lottie 视图拼凑加载动画。
+
+#### 11.1.1 全屏 Loading（`showLoadingView`）
+
+用于整页数据加载场景，覆盖整个父视图，默认白色背景。
+
+| 属性 | 值 |
+|------|-----|
+| **动画资源** | `ficfun_loading.json`（独角兽动画） |
+| **动画尺寸** | 44 × 44 pt |
+| **背景色** | 白色（可自定义） |
+| **位置** | 父视图居中 |
+| **循环** | 无限循环 |
+
+```objc
+// UIView 分类调用
+[self.view showLoadingView];
+
+// 自定义背景色
+[self.view showLoadingViewWithBackgroundColor:UIColor.clearColor];
+
+// 指定 frame
+[self.view showLoadingViewWithFrame:CGRectMake(0, 100, SCREEN_WIDTH, 200)];
+
+// 隐藏
+[self.view hideLoadingView];
+```
+
+#### 11.1.2 小型 Loading（`showSmallLoadingView`）
+
+用于弹框、卡片、局部区域等非全屏场景，默认透明背景，尺寸更小。
+
+| 属性 | 值 |
+|------|-----|
+| **动画资源** | `refreshLoading.json`（菊花旋转动画） |
+| **动画尺寸** | 30 × 30 pt |
+| **背景色** | 透明（可自定义） |
+| **位置** | 父视图居中，支持 Y 轴偏移 |
+
+```objc
+// 默认透明背景，居中
+[self.view showSmallLoadingView];
+
+// Y 轴偏移（正值向下）
+[self.view showSmallLoadingViewWithOffY:-50];
+
+// 自定义背景色
+[self.view showSmallLoadingViewWithBackgroundColor:UIColor.whiteColor];
+
+// 隐藏
+[self.view hideSmallLoadingView];
+```
+
+#### 11.1.3 指示器 Loading（`showIndicatorLoadingView`）
+
+带深色圆角背景框的 Loading，适合需要视觉突出的场景。支持附带文字和自动消失。
+
+| 属性 | 值 |
+|------|-----|
+| **动画资源** | `refreshLoading.json` |
+| **动画尺寸** | 30 × 30 pt |
+| **外框尺寸** | 52 × 52 pt |
+| **外框背景** | `#000000` 60% 透明度 |
+| **外框圆角** | 8 pt |
+| **蒙层背景** | 透明（不阻挡底层交互） |
+| **文字样式** | 12pt Regular 白色，居中 |
+| **文字间距** | 与外框上下左右各 12pt（有文字时） |
+
+```objc
+// 仅动画，无文字
+[self.view showIndicatorLoadingView];
+
+// 带文字，3 秒后自动消失
+[self.view showIndicatorLoadingViewWithTitle:@"Loading..."
+                        autoHiddenDuration:3.0];
+
+// 隐藏
+[self.view hideIndicatorLoadingView];
+```
+
+#### 11.1.4 支付风格 Loading（`showBgIndicatorLoadingView`）
+
+带半透明黑色蒙层 + 白色圆角动画框，与支付流程 Loading 风格一致，视觉重量最高。
+
+| 属性 | 值 |
+|------|-----|
+| **动画资源** | `refreshLoading.json` |
+| **动画尺寸** | 30 × 30 pt |
+| **白色外框尺寸** | 52 × 52 pt |
+| **白色外框圆角** | 8 pt |
+| **蒙层背景** | `#000000` 70% 透明度 |
+| **文字样式** | 16pt Regular 白色，居中 |
+| **文字间距** | 与白色外框间距 8pt |
+
+```objc
+// 仅动画
+[self.view showBgIndicatorLoadingView];
+
+// 带文字
+[self.view showBgIndicatorLoadingViewWithTitle:@"支付中..."];
+
+// 隐藏
+[self.view hideIndicatorLoadingView];
+```
+
+#### 11.1.5 静态骨架图（`showSkeletonScreenView`）
+
+用于页面首次加载时展示静态骨架占位图，给用户即时反馈。
+
+| 属性 | 值 |
+|------|-----|
+| **类型** | 静态 UIImage |
+| **适配** | iPad 自动等比缩放填充，iPhone 原图显示 |
+| **缩放方式** | `SDImageScaleModeFill`（后台线程异步缩放） |
+
+```objc
+[self.view showSkeletonScreenViewWithImage:[UIImage imageNamed:@"skeleton_placeholder"]];
+
+// 隐藏
+[self.view hideSkeletonScreenView];
+```
+
+### 11.2 非 SwiftModule — UIView / UIViewController 分类
+
+**定义位置**：
+- `Classes/CommonModules/CommonUI/Loading/UIView+Loading.h/.m`
+- `Classes/CommonModules/CommonUI/Loading/UIViewController+Loading.h/.m`
+
+`UIViewController+Loading` 将方法直接转发到 `self.view`，接口与 `UIView+Loading` 完全一致。所有 show/hide 方法均通过 Associated Object 关联 `HYLoadingView` 实例，自动管理生命周期。
+
+**关键实现细节**：
+- 所有方法内部强制切回主线程执行（`dispatch_async(dispatch_get_main_queue(), ...)` / `SafetyCallblockOnMain`）
+- Loading 视图通过 `bringSubviewToFront:` 保证始终在最顶层
+- 同一视图多次调用 show 不会重复创建 HYLoadingView 实例
+
+### 11.3 非 SwiftModule — HYShimmerAnimator（扫光动画）
+
+**定义位置**：`Classes/BaseModules/Utils/HYShimmerAnimator.swift`
+
+基于 `CALayer` + `CAGradientLayer` 实现的扫光效果，用于 VIP 会员卡、订阅卡片等需要视觉吸引力的组件上。
+
+| 属性 | 默认值 | 说明 |
+|------|--------|------|
+| **动画时长** | 2.0s | 单次扫光持续时间 |
+| **停顿间隔** | 1.0s | 两次扫光之间的停顿 |
+| **图片** | 自定义扫光图 | 通过 `image` 属性注入 |
+| **重复** | 无限循环 | — |
+
+**技术实现**：
+- 扫光图片宽度为父视图 2 倍，水平从左到右平移
+- `containerLayer.masksToBounds = true` 限制扫光范围不溢出
+- 自动监听 App 前后台切换，进入前台自动恢复动画
+
+```swift
+let animator = HYShimmerAnimator(targetView: vipCardView)
+animator.image = UIImage(named: "shimmer_light")
+animator.duration = 2.0
+animator.start()
+
+// 停止
+animator.stop()
+
+// 完全移除
+animator.remove()
+```
+
+### 11.4 非 SwiftModule — 其他 Loading 组件
+
+#### HYRefreshLoadingAnimationView（下拉刷新 Loading）
+
+**定义位置**：`Classes/BaseModules/CustomView/HYRefreshControl/HYRefreshLoadingAnimationView.h/.m`
+
+| 属性 | 值 |
+|------|-----|
+| **动画资源** | `refreshLoading.json`（默认，可替换） |
+| **动画尺寸** | 30 × 30 pt |
+| **循环控制** | 支持单次/循环播放 |
+
+```objc
+HYRefreshLoadingAnimationView *loadingView = [[HYRefreshLoadingAnimationView alloc] initWithFrame:CGRectMake(0, 0, 30, 30)];
+[loadingView playLoadingAnimationWithLoopAnimation:YES];
+[loadingView stopLoadingAnimation];
+```
+
+#### HYVideoLoadingView（视频播放器 Loading）
+
+**定义位置**：`Classes/BaseModules/Player/HYVideoLoadingView.h/.m`
+
+| 属性 | 值 |
+|------|-----|
+| **类型** | 圆弧旋转（`CAGradientLayer` + `CAShapeLayer`） |
+| **尺寸** | 38 × 38 pt（intrinsicContentSize） |
+| **线宽** | 2 pt |
+| **动画** | 2π 匀速旋转 + 0.3s 淡入淡出 |
+| **额外功能** | 支持显示网速文字 |
+
+#### HYBookCityPersonalTagContainerLoadingView（书城标签 Loading）
+
+**定义位置**：`Classes/BusinessModules/BookCity/View/Main/Column/Personal/HYBookCityPersonalTagContainerLoadingView.swift`
+
+| 属性 | 值 |
+|------|-----|
+| **动画资源** | `refreshLoading.json` |
+| **动画尺寸** | 30 × 30 pt |
+| **位置** | 父视图水平居中，垂直方向 ×0.7 偏移 |
+
+#### HYCircleProgressView（圆形进度条）
+
+**定义位置**：`Classes/CommonModules/CommonUI/HYCircleProgressView.h/.m`
+
+用于展示确定进度的圆形进度指示器（如章节阅读进度），区别于无限循环的 Loading。
+
+### 11.5 SwiftModule — HYSkeletonView（列表骨架屏）
+
+**定义位置**：`Classes/SwiftModules/Base/BaseKit/Sources/BaseUIKit/SkeletonView/HYSkeletonView.swift`
+
+基于第三方库 `SkeletonView` 实现的**泛型 CollectionView 骨架屏**，用于列表数据加载前的占位展示。
+
+| 属性 | 值 |
+|------|-----|
+| **泛型约束** | `Cell: UICollectionViewCell & ReuseIdentifierProtocol` |
+| **骨架颜色** | `.clouds`（默认浅灰），可通过 `color` 属性自定义 |
+| **骨架行数** | 10 行（固定） |
+| **滚动方向** | 垂直 |
+| **itemSize** | 宽度 `SCREEN_WIDTH`，高度 10pt（estimated） |
+
+**使用方式**：
+
+1. 在 Cell 子视图中标记 `isSkeletonable = true`：
+
+```swift
+// FlowCell.swift 示例
+bookCover.isSkeletonable = true
+bookNameLabel.isSkeletonable = true
+authorLabel.isSkeletonable = true
+descLabel.isSkeletonable = true
+```
+
+2. 创建骨架视图并添加到父视图：
+
+```swift
+let skeletonView = HYSkeletonView<FlowCell>(frame: .zero)
+view.addSubview(skeletonView)
+skeletonView.snp.makeConstraints { make in
+    make.edges.equalToSuperview()
+}
+// 添加到父视图后自动展示骨架（didMoveToSuperview 触发 showSkeleton）
+```
+
+3. 数据加载完成后，移除骨架视图：
+
+```swift
+skeletonView.removeFromSuperview()
+```
+
+**工作原理**：
+- `HYSkeletonView` 内部创建不可滚动的 `SkeletonCollectionView`，同时作为 `dataSource` 和 `SkeletonCollectionViewDataSource`
+- 通过 `fillLabel(view:)` 递归遍历所有 `isSkeletonable = true` 的 UILabel/UITextView，将文本替换为空格（`emptyText`），使 SkeletonView 库自动渲染为灰色占位条
+- `SkeletonAppearance.default.renderSingleLineAsView = true` 确保每行文字渲染为独立的骨架条
+- `collectionView.showSkeleton(usingColor: color)` 在 `didMoveToSuperview()` 时自动触发
+
+### 11.6 SwiftModule — UIComponentLoading（DI 注入式 Loading）
+
+**定义位置**：`Classes/SwiftModules/UIComponent/Sources/UIComponent/Components/UIComponentLoading.swift`
+
+通过 Swift DI 系统提供的 Loading 服务，遵循 `UIComponentLoadingProtocol` 协议。使用独立的 `UIWindow`（window level）实现全局覆盖。
+
+| 属性 | 值 |
+|------|-----|
+| **动画资源** | `refreshLoading.json`（通过 `F.refreshLoadingJson` 引用，支持 Lottie 缓存） |
+| **动画尺寸** | 30 × 30 pt |
+| **外框尺寸** | 52 × 52 pt |
+| **外框背景** | `color_bg_container`（白色容器背景） |
+| **外框圆角** | 8 pt（`hyview.layerCornerRadius`） |
+| **文字样式** | 16pt Regular，`color_txt_w_ic_anti`（反白文字），居中 |
+| **文字间距** | 与动画视图间距 8pt（`UIStackView.spacing`） |
+| **倒计时** | 支持 `countDown` 参数，格式 `"标题 (Ns)"`，使用 `PollingTimer` 每秒更新 |
+| **Window 层级** | `UIWindow.Level.alert + AlertModel.AlertLevel.loading.rawValue` |
+
+**两种展示层级**：
+
+| 层级 | 说明 | 使用场景 |
+|------|------|----------|
+| **`.window(_)`** | 创建独立 UIWindow，覆盖在所有页面之上（包括 Alert） | 支付、全局阻塞操作 |
+| **`.controller(_)`** | 添加到指定 ViewController 的 view 上 | 页面级 Loading |
+
+```swift
+// 全局 window 级别
+Loading().startLoading(level: .window(()), title: "加载中...", countDown: nil)
+
+// 控制器级别，带 30s 倒计时
+Loading().startLoading(level: .controller(viewController), title: "处理中", countDown: 30)
+
+// 停止
+Loading().stopLoading()
+```
+
+### 11.7 Lottie 动画资源清单
+
+所有 Loading 动画使用 Lottie JSON 格式，存放于 `Classes/SwiftModules/Base/Resource/Sources/ResourceDR/Animation/`：
+
+| 文件名 | 用途 | 说明 |
+|--------|------|------|
+| `loading/refreshLoading.json` | 菊花旋转动画 | 最通用，小尺寸 Loading、下拉刷新、局部 Loading 均使用此文件 |
+| `loading/ficfun_loading.json` | 独角兽动画（白天） | 全屏页面 Loading 的默认动画 |
+| `loading/ficfun_loading_night.json` | 独角兽动画（夜间） | 夜间模式下的独角兽 Loading |
+| `loading/loadingdark.json` | 夜间菊花动画 | 夜间模式下的菊花旋转动画 |
+| `download/downloading_day.json` | 下载动画（白天） | 下载中的进度动画 |
+| `download/downloading_night.json` | 下载动画（夜间） | 夜间模式下的下载动画 |
+
+> **注意**：动画资源通过 `OCCallSwiftAdapter` 桥接给 OC 侧使用（`HYAnimationView` 类）。Swift 侧通过 `F.refreshLoadingJson` 等类型安全引用加载，支持 `LottieAnimationCache` 缓存。
+
+### 11.8 使用原则
+
+#### 场景选择指南
+
+| 场景 | 推荐组件 | 模块 |
+|------|---------|------|
+| **整页首次加载** | `showLoadingView`（独角兽）或 `showSkeletonScreenView`（骨架图） | 非 SwiftModule |
+| **弹窗/卡片内加载** | `showSmallLoadingView` | 非 SwiftModule |
+| **带提示文案的加载** | `showIndicatorLoadingView`（深色框）或 `showBgIndicatorLoadingView`（白色框+蒙层） | 非 SwiftModule |
+| **支付/阻塞操作** | `showBgIndicatorLoadingView` 或 `UIComponentLoading.window` | 非 SwiftModule / SwiftModule |
+| **列表首次加载占位** | `HYSkeletonView`（骨架屏） | SwiftModule |
+| **VIP 卡片扫光** | `HYShimmerAnimator` | 通用 |
+| **下拉刷新** | `HYRefreshLoadingAnimationView` | 非 SwiftModule |
+| **视频缓冲** | `HYVideoLoadingView` | 非 SwiftModule |
+| **确定进度** | `HYCircleProgressView` | 非 SwiftModule |
+
+#### 关键约束
+
+- **禁止**在业务代码中直接使用 `LottieAnimationView` 或 `MBProgressHUD` 拼凑 Loading，必须通过上述公共组件
+- Loading 展示/隐藏**必须在主线程**调用，各组件内部已做主线程断言或 dispatch 保护
+- 同一视图避免同时展示多个 Loading，`HYLoadingView` 通过 Associated Object 保证同一视图只有一个实例
+- 骨架屏（`HYSkeletonView`）数据加载完成后**必须移除**（`removeFromSuperview`）
+- `HYShimmerAnimator` 必须在适当时机调用 `stop()` 或 `remove()`，避免后台持续消耗 GPU 资源
+- 新增 Loading 动画资源需同步更新两套引用：OC 侧的 `HYAnimationView` 构造参数和 Swift 侧的 `ResourceDR.swift` 枚举
+
+---
+
+## 12. 多语言与国际化
 
 项目支持 **15 种语言**（ar / de / en / es / fr / id / it / ja / ko / pt / ru / th / tl / tr / vi），Dreame 产品额外支持 `fil`（Filipino）。RTL 语言仅阿拉伯语（`ar`）。
 
@@ -1330,7 +1680,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 ---
 
-## 12. 动画与交互
+## 13. 动画与交互
 
 - 简单动画使用 `UIView.animate(withDuration:...)` 或 `UIViewPropertyAnimator`。
 - 动画时长参考：
@@ -1342,7 +1692,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 ---
 
-## 13. 机型与系统版本适配
+## 14. 机型与系统版本适配
 
 项目最低部署目标为 **iOS 13.0**，同时支持 iPhone 和 iPad。所有 UI 代码必须正确适配不同机型和系统版本。
 
@@ -1429,7 +1779,7 @@ if #available(iOS 13.0, *) {
 
 ---
 
-## 14. 性能与调试
+## 15. 性能与调试
 
 - 列表和集合视图必须使用 Cell 复用，并正确设置 `estimatedRowHeight` 以启用自定高度。
 - 避免视图层级过深（一般不超过 10 层），复杂页面考虑用 `CALayer` 或异步绘制优化。
@@ -1442,7 +1792,7 @@ constraint.identifier = "avatar-top"
 
 ---
 
-## 15. 第三方库约定
+## 16. 第三方库约定
 
 - 所有依赖通过 **Swift Package Manager** 统一管理。
 - 当前项目允许的第三方库：
