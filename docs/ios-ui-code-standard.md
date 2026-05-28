@@ -1,6 +1,6 @@
 # iOS UI 代码规范 (Dreame阅读项目)
 
-> **版本**：1.2  
+> **版本**：1.3  
 > **适用范围**：本项目所有使用 UIKit 进行界面开发的模块。  
 > **核心原则**：一致性、可读性、可维护性、可复用性。  
 > 任何设计稿到代码的转化都必须严格遵循本规范。
@@ -20,11 +20,12 @@
 - [9. 图片资源管理](#9-图片资源管理)
 - [10. 组件复用与基类](#10-组件复用与基类)
 - [11. 加载动画规范](#11-加载动画规范)
-- [12. 多语言与国际化](#12-多语言与国际化)
-- [13. 动画与交互](#13-动画与交互)
-- [14. 机型与系统版本适配](#14-机型与系统版本适配)
-- [15. 性能与调试](#15-性能与调试)
-- [16. 第三方库约定](#16-第三方库约定)
+- [12. 错误页与空页面规范](#12-错误页与空页面规范)
+- [13. 多语言与国际化](#13-多语言与国际化)
+- [14. 动画与交互](#14-动画与交互)
+- [15. 机型与系统版本适配](#15-机型与系统版本适配)
+- [16. 性能与调试](#16-性能与调试)
+- [17. 第三方库约定](#17-第三方库约定)
 
 ---
 
@@ -1541,11 +1542,334 @@ Loading().stopLoading()
 
 ---
 
-## 12. 多语言与国际化
+## 12. 错误页与空页面规范
+
+项目在不同模块层提供了多套错误页/空页面组件，覆盖 OC 和 Swift 两侧。选用时根据 **所在模块类型** 和 **交互复杂度** 决定：
+
+| 需求场景 | 推荐组件 | 模块域 |
+|----------|---------|--------|
+| 全屏空状态，需刷新按钮 | `HYBaseWarningView` | 非 SwiftModule |
+| 局部空状态，纯图文展示 | `UIView+Empty` | 非 SwiftModule |
+| VC 级别空状态管理 | `UIViewController+Error` | 非 SwiftModule |
+| Swift 页面，4 状态切换（内容/加载/错误/空） | `StatefulViewController` 协议 | SwiftModule |
+| Swift 页面，统一状态视图组件 | `UIComponentStateView`（`StatefulView`） | SwiftModule |
+
+### 12.1 HYBaseWarningView（非 SwiftModule 通用空状态视图）
+
+**文件位置**：`Classes/CommonModules/CommonUI/EmptyView/HYBaseWarningView.h/.m`
+
+基于 `UIStackView` 纵向布局的空状态视图，通过枚举 `HYWarningShowType`（共 47 种预设类型）驱动图标、文案和按钮样式。
+
+#### 12.1.1 布局结构
+
+```
+UIStackView (axis = Vertical, spacing = 20pt)
+├── warningImageView    —— 空状态插图
+├── titleLabel          —— 描述文案
+└── button              —— 刷新/操作按钮（可选）
+```
+
+**约束规则**：
+- StackView 相对于父视图居中
+- 在 UIViewController 场景中，centerY 偏移量 = `(TopMargin - BottomMargin) / 2.0`，避免被导航栏遮挡
+- 所有子视图自适应内容高度，宽度由 StackView 统一控制
+
+#### 12.1.2 各子视图规格
+
+| 子视图 | 属性 | 规格值 |
+|--------|------|--------|
+| `warningImageView` | contentMode | `ScaleAspectFit` |
+| `titleLabel` | font | 16pt Regular（`UIFont.appleSFUIFontRegular(ofSize: 16)` 等价） |
+| `titleLabel` | textColor | `text_MainColorWithAlpha:0.6`（60% 主色透明度） |
+| `titleLabel` | textAlignment | `NSTextAlignmentCenter` |
+| `titleLabel` | numberOfLines | 0（多行） |
+| `button` | borderWidth | 1pt |
+| `button` | cornerRadius | 20pt（全圆角） |
+| `button` | titleLabel.font | Bold 17pt |
+| `button` | titleColor | 主题色（`text_ThemeColor`） |
+| `button` | contentEdgeInsets | 水平 50pt |
+| `StackView` | spacing | 20pt |
+
+**暗黑模式适配**：
+- `HYWarningShowTypeNoNetworkDark` 和 `HYWarningShowTypeNoNetworkNoBtnDark` 等暗黑类型使用浅色文案 `color_text_normal_anti`，适配深色背景
+
+#### 12.1.3 HYWarningShowType 枚举（部分常用类型）
+
+| 枚举值 | 图标资源 | 默认文案 | 有无按钮 |
+|--------|---------|---------|----------|
+| `HYWarningShowTypeNoNetwork` | `warningIcon_no_network` | "似乎没有网络哦\n请检查网络连接" | ✅ |
+| `HYWarningShowTypeNoNetWorkNoBtn` | `warningIcon_no_network` | "似乎没有网络哦\n请检查网络连接" | ❌ |
+| `HYWarningShowTypeNoData` | `warningIcon_no_collection` | "暂无数据" | ❌ |
+| `HYWarningShowTypeNoCollection` | `warningIcon_no_collection` | "暂无收藏" | ❌ |
+| `HYWarningShowTypeNoHistory` | `warningIcon_no_history` | "暂无历史记录" | ❌ |
+| `HYWarningShowTypeNoComment` | `warningIcon_no_comment` | "暂无评论" | ❌ |
+| `HYWarningShowTypeNoSearchResult` | `warningIcon_no_searchresult` | "暂无搜索结果" | ❌ |
+| `HYWarningShowTypeLoadFailed` | `warningIcon_load_failed` | "加载失败" | ✅ |
+| `HYWarningShowTypeServerError` | `warningIcon_server_error` | "服务器开小差了" | ✅ |
+| `HYWarningShowTypeDelete` | `warningIcon_delete` | "内容已删除" | ❌ |
+| `HYWarningShowTypeDeleteByAuthor` | `warningIcon_delete` | "作者已删除" | ❌ |
+| `HYWarningShowTypeNoNetworkDark` | `warningIcon_no_network` | "似乎没有网络哦\n请检查网络连接" | ✅ |
+| ... | ... | ... | ... |
+
+> 完整 47 种类型详见 `HYBaseWarningView.h` 的 `HYWarningShowType` 枚举定义。
+
+#### 12.1.4 代码使用示例
+
+```objc
+// 在 UIViewController 中使用（推荐）
+[self showEmptyViewWithType:HYWarningShowTypeNoNetwork
+              refreshAction:^{
+    [self reloadData];
+} tapAction:nil];
+
+// 在 UIView 中使用
+[self showEmptyViewWithType:HYWarningShowTypeNoData
+              refreshAction:nil
+                  tapAction:nil];
+
+// 动态修改文案
+[self.baseWarningView updateTitle:@"新的提示文案"];
+
+// 隐藏
+[self hideEmptyView];
+```
+
+#### 12.1.5 关键 API
+
+| API | 说明 |
+|-----|------|
+| `showEmptyViewWithType:refreshAction:tapAction:` | 展示指定类型的空状态视图 |
+| `updateTitle:` | 动态更新标题文案 |
+| `hideEmptyView` | 移除空状态视图 |
+| `baseWarningView` | 只读属性，获取当前 HYBaseWarningView 实例 |
+| `refreshAction` | Block 属性，按钮点击回调 |
+
+---
+
+### 12.2 UIView+Empty / UIViewController+Error（非 SwiftModule 分类扩展）
+
+**文件位置**：
+- `Classes/CommonModules/CommonUI/EmptyView/UIView+Empty.h/.m`
+- `Classes/CommonModules/CommonUI/EmptyView/UIViewController+Error.h/.m`
+
+通过 Objective-C 的 Associated Object 机制为 UIView / UIViewController 提供轻量级的空状态管理能力，无需子类化。
+
+#### 12.2.1 UIView+Empty —— 简易空视图
+
+**纯图文展示，无按钮**：
+
+```
+UIImageView (居中，contentMode = ScaleAspectFit)
+UILabel (距 ImageView 下方 20pt，居中对齐)
+```
+
+| 属性 | 规格值 |
+|------|--------|
+| titleLabel.font | 14pt Regular |
+| titleLabel.textColor | `text_MainColorWithAlpha:0.6` |
+| titleLabel.textAlignment | `NSTextAlignmentCenter` |
+| titleLabel.numberOfLines | 0 |
+| ImageView ↔ Label 间距 | 20pt |
+| ImageView 定位 | 父视图水平居中，垂直居中 |
+
+**支持 YYLabel 富文本高亮**：可指定 `highlightText` 和 `highlightColor`，点击高亮文案触发 `hightTapAction`。
+
+```objc
+// 简易空视图
+[self addEmptyViewWithImageName:@"img_empty_default" title:@"暂无数据"];
+
+// 带高亮交互的空视图
+[self addEmptyViewWithImageName:@"img_empty_default"
+                          title:@"还没有记录，去书城逛逛吧"
+                  highlightText:@"书城"
+                 highlightColor:[UIColor blueColor]
+                        offsetY:0
+                 hightTapAction:^{
+    [self goToBookCity];
+}];
+
+// 移除
+[self removeEmptyView];
+```
+
+#### 12.2.2 UIViewController+Error —— VC 级空状态管理
+
+在 `UIView+Empty` 基础上封装，直接为 UIViewController 提供 `showEmptyViewWithType:refreshAction:tapAction:` 等方法，内部自动将 `HYBaseWarningView` 添加到 VC 的 view 上。
+
+```objc
+// 展示带刷新按钮的错误页
+[self showEmptyViewWithType:HYWarningShowTypeLoadFailed
+              refreshAction:^{
+    [self loadData];
+} tapAction:nil];
+
+// 展示无数据空页
+[self showEmptyViewWithType:HYWarningShowTypeNoData
+              refreshAction:nil
+                  tapAction:nil];
+
+// 隐藏
+[self hideEmptyView];
+```
+
+默认背景色为白色。空视图基于 Associated Object 持有，重复调用 `showEmptyViewWithType:` 会自动替换旧视图。
+
+---
+
+### 12.3 StatefulViewController 协议体系（SwiftModule）
+
+**文件位置**：`Classes/SwiftModules/Base/BaseKit/Sources/BaseUIKit/StatefulViewController/`
+
+一套 Swift 协议驱动的四状态视图管理方案，适用于需要 **内容 / 加载 / 错误 / 空** 四种状态平滑切换的页面。
+
+#### 12.3.1 状态定义
+
+```swift
+public enum StatefulViewControllerState {
+    case content   // 正常内容
+    case loading   // 加载中
+    case error     // 加载失败
+    case empty     // 数据为空
+}
+```
+
+#### 12.3.2 核心协议
+
+```swift
+public protocol StatefulViewController: AnyObject {
+    var currentState: StatefulViewControllerState { get set }
+    var loadingView: UIView? { get set }
+    var errorView: UIView? { get set }
+    var emptyView_s: UIView? { get set }  // 避免与 UIViewController.emptyView 冲突
+
+    func startLoading()
+    func endLoading()
+    func hasContent() -> Bool
+    func transitionViewStates(previous: StatefulViewControllerState, current: StatefulViewControllerState)
+}
+```
+
+#### 12.3.3 ViewStateMachine 过渡动画
+
+默认实现使用 `ViewStateMachine` 管理状态切换：
+
+| 属性 | 值 |
+|------|-----|
+| 过渡动画 | UIView 0.3s 交叉淡入淡出（fade） |
+| 调度队列 | 串行队列（线程安全） |
+| 占位视图内边距 | 支持 `StatefulPlaceholderView` 自定义 insets |
+| 约束方式 | Auto Layout VFL |
+
+---
+
+### 12.4 StatefulView 统一状态视图组件（SwiftModule）
+
+**文件位置**：`Classes/SwiftModules/UIComponent/Sources/UIComponent/Components/UIComponentStateView.swift`
+
+**协议定义**：`Classes/SwiftModules/Base/Interface/Sources/Proto/UIComponentModule/UIComponentModuleProtocol.swift`
+
+`StatefulView`（即 `UIComponentStateView`）是 SwiftModule 中统一的状态视图组件，通过 UIComponent 模块对外暴露协议接口。
+
+#### 12.4.1 布局结构
+
+```
+UIStackView (axis = Vertical, spacing = 20pt, alignment = Center)
+├── imageView / animationView    —— 插图（支持静态图或 Lottie 动画）
+├── desLabel                     —— 描述文案
+└── refreshButton               —— 刷新按钮（可选）
+```
+
+#### 12.4.2 资源类型
+
+```swift
+public enum StateViewResourceType {
+    case animation(HYFileResource)   // Lottie 动画资源
+    case image(HYImageResource)      // 静态图片资源
+}
+```
+
+#### 12.4.3 各子视图规格
+
+| 子视图 | 属性 | 规格值 |
+|--------|------|--------|
+| imageView | 宽度比例 | 父视图宽度的 **0.5 倍** |
+| animationView | 宽度比例 | 父视图宽度的 **1/3 倍** |
+| desLabel | font | 16pt Regular |
+| desLabel | textColor | `color_txt_w_ic_secondary` |
+| desLabel | numberOfLines | 0（多行） |
+| desLabel | 最大宽度 | `SCREEN_WIDTH - 92pt`（左右各 46pt 边距），iPhone SE 等小屏为 40pt |
+| refreshButton | height | 44pt |
+| refreshButton | cornerRadius | 全圆角（22pt） |
+| refreshButton | 宽度 | `SCREEN_WIDTH - 150pt` |
+| StackView | spacing | 20pt |
+
+#### 12.4.4 按钮样式（StateViewRefreshType）
+
+| 样式 | 枚举值 | 背景色 | 文字色 | 边框 |
+|------|--------|--------|--------|------|
+| 实心（Normal） | `.normal` / rawValue 0 | `#B857FF`（紫色） | 白色 | 无 |
+| 边框（Border） | `.border` / rawValue 1 | 透明/白色 | `#B857FF`（紫色） | 紫色 1pt |
+
+#### 12.4.5 协议接口
+
+```swift
+public protocol ControllerStateViewProtocol {
+    var refreshEvent: PublishSubject<Void> { get }       // RxSwift 刷新事件
+    var backgroundViewEdgeInsets: UIEdgeInsets { get set } // 背景视图内边距
+    var contentOffset: CGPoint { get set }                // 内容偏移量
+    var imageViewSizeProportion: CGFloat { get set }      // 图片宽度比例（默认 0.5）
+    var animationViewSizeProportion: CGFloat { get set }  // 动画宽度比例（默认 1/3）
+}
+
+public protocol UIComponentStateViewProtocol {
+    func staticStateView() -> ControllerStateViewProtocol   // 静态状态页
+    func animationLoadingView() -> ControllerStateViewProtocol // Lottie 加载页
+    func staticEmptyView() -> ControllerStateViewProtocol    // 静态空页面
+}
+```
+
+#### 12.4.6 使用示例
+
+```swift
+// 在 StatefulViewController 中使用
+class BookCityMainController: UIViewController, StatefulViewController {
+    var loadingView: UIView? = {
+        let view = UIComponentStateView.animationLoadingView()
+        return view as? UIView
+    }()
+
+    var emptyView_s: UIView? = {
+        let view = UIComponentStateView.staticEmptyView()
+        // 配置描述文案等
+        return view as? UIView
+    }()
+
+    var errorView: UIView? = {
+        let view = UIComponentStateView.staticStateView()
+        // 配置刷新按钮
+        return view as? UIView
+    }()
+}
+```
+
+---
+
+### 12.5 使用原则
+
+- **模块边界清晰**：非 SwiftModule（OC）使用 `HYBaseWarningView` / `UIView+Empty` / `UIViewController+Error`；SwiftModule 使用 `StatefulViewController` 协议 + `StatefulView` 组件
+- **生命周期管理**：空视图通过 Associated Object 持有，页面销毁时自动释放；`StatefulView` 通过 `ViewStateMachine` 管理切换，避免手动 add/remove 导致的层级混乱
+- **颜色适配**：`HYBaseWarningView` 的按钮和文案颜色使用项目 ColorSet 方法（`text_ThemeColor`、`text_MainColorWithAlpha:`），暗黑模式自动适配
+- **禁止**在非 SwiftModule 中引用 `StatefulView` 或 `StatefulViewController`，也**禁止**在 SwiftModule 中绕过协议直接使用 `HYBaseWarningView`
+- 空状态视图展示时应**禁用**底层滚动视图的 scrollEnabled，隐藏时恢复
+- 刷新按钮回调中应**先隐藏空视图再发起请求**，避免网络返回前重复展示
+
+---
+
+## 13. 多语言与国际化
 
 项目支持 **15 种语言**（ar / de / en / es / fr / id / it / ja / ko / pt / ru / th / tl / tr / vi），Dreame 产品额外支持 `fil`（Filipino）。RTL 语言仅阿拉伯语（`ar`）。
 
-### 11.1 资源文件存放
+### 13.1 资源文件存放
 
 三套并行的多语言资源，分别服务于不同模块：
 
@@ -1558,7 +1882,7 @@ Loading().stopLoading()
 
 > 项目中**不存在** `.stringsdict` 文件（复数形式通过 `NSString stringWithFormat:` 动态拼接）。
 
-### 11.2 非 SwiftModule（OC）字符串加载
+### 13.2 非 SwiftModule（OC）字符串加载
 
 OC 代码统一使用标准 `NSLocalizedString(key, comment:)`，**无需自定义宏**。项目通过 `NSBundle+HYLanguages` 对 `[NSBundle mainBundle]` 做了 method swizzling，自动将字符串查找重定向到当前语言对应的 `.lproj` 目录。
 
@@ -1581,7 +1905,7 @@ HYAlertView *alert = [HYAlertView alertViewWithTitle:NSLocalizedString(@"notice"
 - 从当前语言对应的 `.lproj` bundle 加载字符串
 - 使用 `NSCache`（countLimit=2000）缓存查找结果
 
-### 11.3 SwiftModule 字符串加载
+### 13.3 SwiftModule 字符串加载
 
 SwiftModule 使用**类型安全的枚举 + 访问器**模式，杜绝硬编码字符串 key。
 
@@ -1623,7 +1947,7 @@ let noData = iUserPreferencesConfig.languageResouce.no_data()
 2. 在 `ResourceDR.swift` 的 `HYLanguageResource` 枚举中添加新 case
 3. 在 `HYLanguageResourceAccessor` 中添加对应的访问器方法
 
-### 11.4 多语言图片
+### 13.4 多语言图片
 
 对于包含文字的图片资源，使用 `UIImage+Multilingual` 分类（`Classes/BaseModules/Utils/UIImage+Multilingual.h/.m`）加载。
 
@@ -1646,7 +1970,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 - `detail_authorized_ar` — 阿拉伯语版
 - `detail_authorized_de` — 德语版
 
-### 11.5 语言切换机制
+### 13.5 语言切换机制
 
 **核心入口**：`HYClient`（`Classes/BaseModules/Utils/HYClient.h/.m`）
 
@@ -1668,7 +1992,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 **RTL 判断**：使用宏 `isRTL()`（仅当语言为 `"ar"` 时返回 YES），用于控制视图的左右镜像适配。
 
-### 11.6 Figma 设计稿中的多语言文案
+### 13.6 Figma 设计稿中的多语言文案
 
 当 Figma 设计稿中包含文案时，处理策略：
 
@@ -1680,7 +2004,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 ---
 
-## 13. 动画与交互
+## 14. 动画与交互
 
 - 简单动画使用 `UIView.animate(withDuration:...)` 或 `UIViewPropertyAnimator`。
 - 动画时长参考：
@@ -1692,11 +2016,11 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 ---
 
-## 14. 机型与系统版本适配
+## 15. 机型与系统版本适配
 
 项目最低部署目标为 **iOS 13.0**，同时支持 iPhone 和 iPad。所有 UI 代码必须正确适配不同机型和系统版本。
 
-### 13.1 iPad 适配
+### 15.1 iPad 适配
 
 使用全局常量 `isIPad`（定义于 `SwiftMacro.swift`）判断当前设备：
 
@@ -1725,7 +2049,7 @@ let contentWidth = min(SCREEN_WIDTH, 600)
 let ratio = isIPad ? 0.55 : 0.8
 ```
 
-### 13.2 刘海屏 / 全面屏适配
+### 15.2 刘海屏 / 全面屏适配
 
 使用全局常量 `IS_BAND_SCREEN`（定义于 `SwiftMacro.swift`）判断全面屏机型：
 
@@ -1739,7 +2063,7 @@ view.snp.makeConstraints { make in
 
 **禁止**自行通过 `safeAreaInsets.bottom > 0` 或硬编码数值判断机型。所有安全区域相关高度统一使用 6.5 节列出的全局常量。
 
-### 13.3 系统版本适配
+### 15.3 系统版本适配
 
 项目最低部署 iOS 13.0，涉及以下关键 API 分界点：
 
@@ -1779,7 +2103,7 @@ if #available(iOS 13.0, *) {
 
 ---
 
-## 15. 性能与调试
+## 16. 性能与调试
 
 - 列表和集合视图必须使用 Cell 复用，并正确设置 `estimatedRowHeight` 以启用自定高度。
 - 避免视图层级过深（一般不超过 10 层），复杂页面考虑用 `CALayer` 或异步绘制优化。
@@ -1792,7 +2116,7 @@ constraint.identifier = "avatar-top"
 
 ---
 
-## 16. 第三方库约定
+## 17. 第三方库约定
 
 - 所有依赖通过 **Swift Package Manager** 统一管理。
 - 当前项目允许的第三方库：
