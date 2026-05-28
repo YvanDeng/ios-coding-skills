@@ -1,6 +1,6 @@
 # iOS UI 代码规范 (Dreame阅读项目)
 
-> **版本**：1.0  
+> **版本**：1.1  
 > **适用范围**：本项目所有使用 UIKit 进行界面开发的模块。  
 > **核心原则**：一致性、可读性、可维护性、可复用性。  
 > 任何设计稿到代码的转化都必须严格遵循本规范。
@@ -13,17 +13,17 @@
 - [2. 文件组织与目录结构](#2-文件组织与目录结构)
 - [3. 视图控制器代码结构](#3-视图控制器代码结构)
 - [4. 视图代码结构](#4-视图代码结构)
-- [5. 布局策略](#5-布局策略)
-- [6. 颜色管理](#6-颜色管理)
-- [7. 字体管理](#7-字体管理)
-- [8. 图片与图标资源](#8-图片与图标资源)
-- [9. 组件复用与基类](#9-组件复用与基类)
-- [10. 多语言与国际化](#10-多语言与国际化)
-- [10. 多语言与国际化](#10-多语言与国际化)
-- [11. 动画与交互](#11-动画与交互)
-- [12. 机型与系统版本适配](#12-机型与系统版本适配)
-- [13. 性能与调试](#13-性能与调试)
-- [14. 第三方库约定](#14-第三方库约定)
+- [5. 通用代码编写规则](#5-通用代码编写规则)
+- [6. 布局管理](#6-布局管理)
+- [7. 颜色管理](#7-颜色管理)
+- [8. 字体管理](#8-字体管理)
+- [9. 图片资源管理](#9-图片资源管理)
+- [10. 组件复用与基类](#10-组件复用与基类)
+- [11. 多语言与国际化](#11-多语言与国际化)
+- [12. 动画与交互](#12-动画与交互)
+- [13. 机型与系统版本适配](#13-机型与系统版本适配)
+- [14. 性能与调试](#14-性能与调试)
+- [15. 第三方库约定](#15-第三方库约定)
 
 ---
 
@@ -165,9 +165,12 @@ Classes/SwiftModules/
 - 复杂页面**必须**使用自定义视图承载页面内容，并在自定义视图中根据子页面的复杂度决定是否进一步拆分出自定义子视图
 - 页面**仅展示单个**列表或者集合内容样式的，可以直接在视图控制器中声明列表或集合视图
 - 导航栏、状态栏和标签栏的 UI 初始化和更新，放在视图控制器中，使用 `// MARK: -` 进行单独分区，位于 `ViewInit` 分区后面
-- 布局代码放在 `// MARK: - ViewInit` 区域内的 `makeConstraints` 方法中。
+- 布局代码放在 `// MARK: - ViewInit` 区域内的 `makeConstraints` 方法中
+- 视图控制器遵循的协议方法必须放在视图控制器的 extension 中，并使用 `// MARK: - 协议名` 分区
 - 使用 ViewModel 来拆分视图控制器的逻辑代码，网络请求发起、请求回调原始数据处理加工、UI 状态加工代码放在 ViewModel 进行
 - 控制器只负责协调逻辑，不负责具体视图构建。
+
+> 视图控制器也遵循第 5 节《通用代码编写规则》中的全部约定（UI 元素声明、deinit 资源清理、didSet 绑定、闭包回调、Data 分区、可选值安全处理等），本节仅列出 VC 特有的规则。
 
 示例结构：
 
@@ -221,16 +224,14 @@ extension ExampleViewController: UITableViewDataSource, UITableViewDelegate {
 
 ## 4. 视图代码结构
 
+本节仅列出 UIView / Cell 特有的规则。与 VC 共享的通用规则（UI 元素声明、deinit、didSet、闭包回调、Data 分区、Theme 分区、可选值处理）见第 5 节《通用代码编写规则》。
+
 - 所有自定义视图使用 `// MARK: -` 进行分区，遵循统一模板
-- UI 元素统一在 `UI Elements` 分区初始化，如果是 UICollectionView 需要自定义 FlowLayout，则使用 lazy var，否则使用 let 初始化视图
 - 统一在 `viewInit` 进行 addSubview 以及各种样式配置，包括字体、颜色、对齐方式、换行、圆角、阴影等
 - 统一在 `makeConstraints` 中使用 **SnapKit** 进行布局初始化，遵循 UI 控件自撑开大小的布局原则，有布局冲突时设置好视图的抗拉伸和抗压缩优先级
-- **可选** `Data` 分区：当 `viewInit()` 依赖内部计算/推导的数据结果时使用（如根据配置值计算当前索引），见 4.5 节
-- **可选** `Theme` 分区：阅读器模块内需要响应独立日夜间模式切换的视图使用，见 4.6 节
 - CAGradientLayer 在 layoutSubviews() 方法中确定了父 layer 的大小后再更新 frame
 - **尽可能**使用 `UIStackView` 来处理视图的自撑开大小，并实现视图的整体居中对齐
 - 公开配置方法使用 `configure(with:)` 或类似名称，不暴露内部控件。
-- **init 方法调用顺序**：默认 `viewInit()` → `makeConstraints()`；有 Data 依赖时 `setupData()` 在前；有 Theme 支持时 `updateTheme()` 在末尾。最完整顺序为 `setupData()` → `viewInit()` → `makeConstraints()` → `updateTheme()`，按需裁剪。
 
 示例结构：
 
@@ -247,7 +248,7 @@ class UserHeaderView: UIView {
       		flowLayout.itemSize = CGSize(width: 300.0, height: 80.0)
       		...
       
-      		let collectionView = UICollectionView(flowLayout: flowLayout)
+      		let collectionView = UICollectionView(frame: .zero, collectionViewLayout: flowLayout)
       		collectionView.dataSource = self
       		...
       
@@ -260,17 +261,17 @@ class UserHeaderView: UIView {
     // MARK: - Initialization
     override init(frame: CGRect) {
         super.init(frame: frame)
-        setupData()       // 可选：viewInit() 依赖预计算数据时调用
+        setupData()       // 可选：viewInit() 依赖预计算数据时调用（见 5.6 节）
         viewInit()
       	makeConstraints()
-        updateTheme()     // 可选：阅读器日夜间模式支持时调用
+        updateTheme()     // 可选：阅读器日夜间模式支持时调用（见 5.7 节）
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    // MARK: - Data（可选）
+    // MARK: - Data（可选，见 5.6 节）
    	private func setupData() { ... }
 
     // MARK: - UI Setup
@@ -286,7 +287,7 @@ class UserHeaderView: UIView {
       
         addSubview(badgeView)
       	
-      	tapHeaderButton.addTarget(self, selector: #selecotr(onHeaderButtonTap))
+      	tapHeaderButton.addTarget(self, action: #selector(onHeaderButtonTap))
       	addSubview(tapHeaderButton)
     }
   
@@ -305,7 +306,7 @@ class UserHeaderView: UIView {
         }
     }
 
-    // MARK: - Theme（可选）
+    // MARK: - Theme（可选，见 5.7 节）
     @objc func updateTheme() { ... }
   
   	// MARK: - Actions
@@ -338,7 +339,83 @@ self.addSubview(titleLabel)
 
 Cell 的背景色应设为 `.clear`（`backgroundColor = .clear`），由 `contentView` 或 Cell 选中样式控制外观。
 
-### 4.2 属性 `didSet` 驱动 UI 绑定
+---
+
+## 5. 通用代码编写规则
+
+以下规则同时适用于**视图控制器（ViewController）**和**自定义视图（UIView / Cell）**，是两者通用的代码编写模式。各节特有的补充规则在第 3 节（VC）和第 4 节（View）中单独说明。
+
+### 5.1 UI 元素声明
+
+- UI 元素统一在对应 `// MARK: -` 分区顶部声明
+- 普通 UIView / UILabel / UIButton 等使用 `private let` 声明并初始化：
+
+```swift
+private let titleLabel = UILabel()
+private let submitButton = UIButton(type: .custom)
+private let avatarImageView = UIImageView()
+```
+
+- UICollectionView 需要自定义 FlowLayout 时，使用 `private lazy var`，在闭包内完成 FlowLayout 配置和 CollectionView 初始化
+- **非 UICollectionView 不得使用 `lazy var`** 声明 UI 元素
+
+```swift
+// ✅ 正确：CollectionView 使用 lazy var
+private lazy var cardListCollectionView: UICollectionView = {
+    let flowLayout = UICollectionViewFlowLayout()
+    flowLayout.itemSize = CGSize(width: 300.0, height: 80.0)
+    let collectionView = UICollectionView(frame: .zero, collectionViewLayout: flowLayout)
+    collectionView.dataSource = self
+    return collectionView
+}()
+
+// ✅ 正确：普通视图使用 let
+private let nameLabel = UILabel()
+
+// ❌ 禁止：普通 UILabel 使用 lazy var
+private lazy var nameLabel: UILabel = {
+    let label = UILabel()
+    return label
+}()
+```
+
+### 5.2 init / viewDidLoad 调用顺序
+
+视图控制器的 `viewDidLoad` 和自定义视图的 `init` 方法均应遵循固定的方法调用顺序，按需裁剪，不调用的方法直接删除，不留空方法体：
+
+| 场景 | ViewController（viewDidLoad） | UIView（init） |
+|------|------------------------------|----------------|
+| **默认** | `viewInit()` → `makeConstraints()` | `viewInit()` → `makeConstraints()` |
+| **有 Data 依赖** | `setupData()` → `viewInit()` → `makeConstraints()` | `setupData()` → `viewInit()` → `makeConstraints()` |
+| **有 Theme 支持** | 末尾追加 `updateTheme()` | 末尾追加 `updateTheme()` |
+| **最完整** | `setupData()` → `viewInit()` → `makeConstraints()` → `updateTheme()` | `setupData()` → `viewInit()` → `makeConstraints()` → `updateTheme()` |
+
+```swift
+// UIView 示例 — 完整顺序
+override init(frame: CGRect) {
+    super.init(frame: frame)
+    setupData()       // 可选：viewInit() 依赖预计算数据时调用
+    viewInit()
+    makeConstraints()
+    updateTheme()     // 可选：阅读器日夜间模式支持时调用
+}
+```
+
+### 5.3 deinit 资源清理
+
+注册了 Observer / Timer / Notification 的视图或视图控制器，**必须**在 `deinit` 中取消注册，防止对象释放后回调导致野指针崩溃：
+
+```swift
+deinit {
+    if let bookId = chapterInfo?.bookId {
+        HYBookTimeLimitFreeManager.shareInstance().unregisterObserverTimeLimitFree(self, bookId: bookId)
+    }
+}
+```
+
+常见需要清理的资源：`NotificationCenter` observer、`Timer`、`KVO`、第三方 SDK 的回调注册（如限免倒计时观察者）。
+
+### 5.4 属性 `didSet` 驱动 UI 绑定
 
 Cell 和简单 View 接收数据时，优先使用属性观察器 `didSet` 触发 UI 更新，外部只需给属性赋值即可：
 
@@ -356,21 +433,7 @@ public var chapterInfo: HYChapterModel? {
 
 复杂页面（多个输入源或异步数据流）仍建议使用 `configure(with:)` 公开方法。
 
-### 4.3 deinit 资源清理
-
-注册了 Observer / Timer / Notification 的视图，**必须**在 `deinit` 中取消注册，防止对象释放后回调导致野指针崩溃：
-
-```swift
-deinit {
-    if let bookId = chapterInfo?.bookId {
-        HYBookTimeLimitFreeManager.shareInstance().unregisterObserverTimeLimitFree(self, bookId: bookId)
-    }
-}
-```
-
-常见需要清理的资源：`NotificationCenter` observer、`Timer`、`KVO`、第三方 SDK 的回调注册（如限免倒计时观察者）。
-
-### 4.4 闭包回调替代 Delegate
+### 5.5 闭包回调替代 Delegate
 
 简单 View 对外暴露事件时，使用闭包属性而非定义 delegate 协议，减少样板代码：
 
@@ -400,12 +463,12 @@ headerView.sortAction = { isSelected in
 
 **适用场景**：事件类型 ≤ 3 个的简单 View。若回调超过 3 个或需要传递复杂上下文，仍使用 delegate 协议。
 
-### 4.5 Data 分区（可选）
+### 5.6 Data 分区（可选）
 
-当 `viewInit()` 中的 UI 初始化依赖内部计算/推导的数据结果时，在 `Initialization` 和 `UI Setup` 之间增加 `Data` 分区，将数据准备逻辑收敛到 `setupData()` 方法。
+当 `viewInit()` 中的 UI 初始化依赖内部计算/推导的数据结果时，在 `Initialization` 和 `viewInit()` 之间增加 `Data` 分区，将数据准备逻辑收敛到 `setupData()` 方法。
 
 **适用条件**（需全部满足）：
-- 视图在 init 时需要根据外部配置值计算/推导内部数据（如根据 `fontSize` 查找在 `sizes` 数组中的索引）
+- 视图/控制器在 init / viewDidLoad 时需要根据外部配置值计算/推导内部数据（如根据 `fontSize` 查找在 `sizes` 数组中的索引）
 - `viewInit()` 中的 label 文本、控件状态等直接依赖该计算结果
 - 数据计算不依赖视图层级（不要求 `addSubview` 先执行）
 
@@ -426,7 +489,7 @@ private func setupData() {
 }
 ```
 
-### 4.6 Theme 分区（可选）
+### 5.7 Theme 分区（可选）
 
 阅读器模块内的视图如需响应 `HYReaderConfig.sharedInstance().theme` 的独立日夜间切换（非系统 Dark Mode），增加 `Theme` 分区承载 `updateTheme()` 方法。
 
@@ -459,7 +522,7 @@ private func setupData() {
 }
 ```
 
-### 4.7 可选值安全处理
+### 5.8 可选值安全处理
 
 **禁止使用 `!` 强制解包可选值**。所有可选值必须通过 `??` 提供合理的默认值。
 
@@ -476,16 +539,16 @@ private func setupData() {
 
 ---
 
-## 5. 布局管理
+## 6. 布局管理
 
-### 5.1 布局方式
+### 6.1 布局方式
 
 - UIView 及其子类 **统一使用 SnapKit** 进行自动布局，禁止混用原生 `NSLayoutConstraint` 或 Storyboard / XIB。
 - **一个视图布局只能二选一**：要么用 SnapKit 约束定位，要么手动设置 frame，严禁对同一个视图既设约束又设 frame。
 - 以下场景使用 frame 布局（**不使用** SnapKit）：
   - **UITableView / UICollectionView 的直接子视图**（非 cell/header/footer 的装饰性浮动视图，如关闭按钮）：必须用 frame 在 `layoutSubviews` 中定位，避免 Auto Layout 与列表内部布局系统冲突。
 
-### 5.2 约束书写示例
+### 6.2 约束书写示例
 ```swift
 // ✅ 正确
 titleLabel.snp.makeConstraints { make in
@@ -497,7 +560,7 @@ titleLabel.snp.makeConstraints { make in
 titleLabel.frame = CGRect(x: 16, y: 20, width: 100, height: 30)
 ```
 
-### 5.3 动态约束更新
+### 6.3 动态约束更新
 
 当 UI 状态变化导致子视图显隐或布局关系改变时，使用 `snp.remakeConstraints` **重建约束**，而非仅更新 `constant` 值：
 
@@ -517,7 +580,7 @@ private func updateSubviewConstraints(onlyShowChapterName: Bool) {
 
 `remakeConstraints` 会先移除旧约束再创建新约束，适用于结构变化场景；若仅偏移量变化，使用 `updateConstraints` 修改 `constant` 即可。
 
-### 5.4 抗拉伸与抗压缩优先级
+### 6.4 抗拉伸与抗压缩优先级
 
 `UIStackView` 内部元素通过设置 Content Hugging Priority 和 Content Compression Resistance Priority 控制布局行为：
 
@@ -531,11 +594,11 @@ rightStackView.setContentCompressionResistancePriority(.required, for: .horizont
 
 典型场景：列表右侧的状态标签组需要完整显示，不被左侧长文本挤掉，此时应对右侧 StackView 设置 `.required` 优先级。
 
-### 5.5 屏幕尺寸与安全区域常量
+### 6.5 屏幕尺寸与安全区域常量
 
 布局中涉及屏幕宽高、安全区域、导航栏/TabBar 高度等尺寸时，**禁止**自行 `UIScreen.main.bounds` 或手动计算。项目有两套并行的常量定义，分别服务于 OC 和 Swift：
 
-#### 5.5.1 OC文件— HYScreen.h
+#### 6.5.1 OC文件— HYScreen.h
 
 **文件**：`Classes/BaseModules/Kits/Macro/HYScreen.h`
 
@@ -566,7 +629,7 @@ CGFloat navBarH = 44 + 20;   // 未考虑刘海屏
 CGFloat bottom = [UIApplication sharedApplication].keyWindow.safeAreaInsets.bottom;
 ```
 
-#### 5.5.2 Swift文件 — SwiftMacro.swift
+#### 6.5.2 Swift文件 — SwiftMacro.swift
 
 **文件**：`Classes/BaseModules/SwiftUtils/SwiftMacro.swift`
 
@@ -622,11 +685,11 @@ let safeBottom = UIApplication.shared.keyWindow?.safeAreaInsets.bottom ?? 0
 
 ---
 
-## 6. 颜色管理
+## 7. 颜色管理
 
 **禁止**在业务代码中使用 `UIColor(red:green:blue:alpha:)` 直接构造颜色。
 
-### 6.1 非 SwiftModule 模块（OC / 老模块）
+### 7.1 非 SwiftModule 模块（OC / 老模块）
 
 使用 `UIColor+HYColorSet` 分类提供的设计系统色值方法（定义于 `Classes/BaseModules/Utils/Theme/UIColor+HYColorSet.h`）。
 
@@ -716,7 +779,7 @@ descLabel.textColor = UIColor.d_color_txt_ic_secondary;
 button.backgroundColor = HexColor(0xE5406A);
 ```
 
-### 6.2 SwiftModule 模块
+### 7.2 SwiftModule 模块
 
 使用 `UIColor(resource: C.xxx)` 通过 SwiftGen 生成的资源引用获取颜色（定义于 `Classes/SwiftModules/Base/Resource/Sources/`）。
 
@@ -745,11 +808,11 @@ view.backgroundColor = .clear
 
 **注意**：并非所有 Figma 颜色在 Assets.xcassets 中都有对应 Color Set。优先查找语义匹配的 Color Set（如 `color_txt_ic_primary`、`color_brand_active`）；确无匹配时，与设计师确认是否需要在 Assets.xcassets 中新增 Color Set。
 
-### 6.3 暗黑模式
+### 7.3 暗黑模式
 - `UIColor+HYColorSet` 中 `d_` 前缀的方法（如 `d_color_txt_ic_primary`）提供暗黑模式色值，系统自动切换。
 - SwiftModule 的 Color Set 必须同时提供 `Any Appearance` 和 `Dark` 两种外观值，确保自动适配。
 
-### 6.4 日夜间模式
+### 7.4 日夜间模式
 
 阅读器相关视图（目录、菜单、设置等）除系统暗黑模式外，还需支持**独立的日夜间切换**（`HYReaderConfig.sharedInstance().theme`），与系统外观解耦。
 
@@ -793,11 +856,11 @@ private func updateThemeForReadStatus(_ isRead: Bool) {
 
 ---
 
-## 7. 字体管理
+## 8. 字体管理
 
 **禁止**直接使用 `UIFont.systemFont(ofSize:)` 或 `UIFont.boldSystemFont(ofSize:)`。
 
-### 7.1 非 SwiftModule 模块（OC / 老模块）
+### 8.1 非 SwiftModule 模块（OC / 老模块）
 
 使用 `UIFont+Dreame` 分类提供的方法（定义于 `Classes/BaseModules/Kits/Categories/UIKit/UIFont+Dreame.h`）。
 
@@ -820,7 +883,7 @@ titleLabel.font = [UIFont appleSFUIFontMediumWithSize:16];
 nameLabel.font = [UIFont appleSFUIFontBoldWithSize:22];
 ```
 
-### 7.2 SwiftModule 模块
+### 8.2 SwiftModule 模块
 
 使用 `UIFont.hyfont.*` 命名空间提供的方法（定义于 `Classes/SwiftModules/Base/BaseKit/Sources/BaseKit/Utils/Font.swift`）。
 
@@ -856,11 +919,11 @@ nameLabel.font = UIFont.hyfont.systemBoldFont(size: 22)
 
 ---
 
-## 8. 图片资源管理
+## 9. 图片资源管理
 
 **禁止**在代码中硬编码图片路径或使用 `UIImage(contentsOfFile:)` 加载资源。
 
-### 8.1 资源存放位置
+### 9.1 资源存放位置
 
 项目中图片资源按模块类型分开存放，**所有 Assets.xcassets 内部均按功能模块使用文件夹分组**：
 
@@ -872,7 +935,7 @@ nameLabel.font = UIFont.hyfont.systemBoldFont(size: 22)
 
 > 新增图片时，根据当前开发的模块类型和功能域，选择对应的 Assets.xcassets 并在对应的模块子目录下创建 Image Set。
 
-### 8.2 命名规范
+### 9.2 命名规范
 
 - 全小写 + 下划线分隔，带类型前缀：
   - 图标：`ic_nav_close`、`ic_direction_right`、`ic_hint`
@@ -881,7 +944,7 @@ nameLabel.font = UIFont.hyfont.systemBoldFont(size: 22)
 - Xcode Assets.xcassets 中所有 Image Set 形成**扁平命名空间**：虽然图片按模块子目录组织，但 OC 代码引用时只写 Image Set 名称本身，不包含目录路径
 - SwiftModule Resources 中的图片在 `ResourceDR.swift` 枚举定义中需要写出相对路径，格式为 `子目录/图片名`，如 `"Common/default_head_small"`、`"Revenue/vip_icon_big"`
 
-### 8.3 从 Figma 获取图片
+### 9.3 从 Figma 获取图片
 
 当设计稿中包含图标或图片资源时，按以下流程处理：
 
@@ -890,7 +953,7 @@ nameLabel.font = UIFont.hyfont.systemBoldFont(size: 22)
 3. **Figma 矢量图标**：对于 SVG 矢量图标，以 2x 导出为 PDF 格式放入 Image Set，勾选 `Preserve Vector Data` 以实现任意缩放不失真
 4. **多语言图片**：若图片包含文字且需适配多语言，需下载对应语言版本，使用 `[UIImage multilingualImageNamed:]` 加载（仅非 SwiftModule）
 
-### 8.4 非 SwiftModule（OC 代码）引用方式
+### 9.4 非 SwiftModule（OC 代码）引用方式
 
 使用原生 API `[UIImage imageNamed:]` 直接加载：
 
@@ -908,7 +971,7 @@ _writerImageView.image = [UIImage multilingualImageNamed:@"author_icon"];
 
 **注意**：OC 代码引用图片时，图片名是**硬编码字符串**，编译器不会校验图片是否存在。命名时必须与 Assets.xcassets 中的 Image Set 名称**严格一致**。
 
-### 8.5 SwiftModule（Swift 代码）引用方式
+### 9.5 SwiftModule（Swift 代码）引用方式
 
 使用类型安全的资源引用，通过 `HYImageResource` 结构体 + 枚举定义，**编译期保证图片存在**。
 
@@ -949,7 +1012,7 @@ public enum I {
 }
 ```
 
-### 8.6 远程图片加载
+### 9.6 远程图片加载
 
 | 模块类型 | 加载方式 | 底层库 |
 |----------|---------|--------|
@@ -960,11 +1023,11 @@ public enum I {
 
 ---
 
-## 9. 组件复用与基类
+## 10. 组件复用与基类
 
 项目中基类和公共组件按模块类型分为两套体系，开发时必须继承或使用对应的组件。
 
-### 9.1 非 SwiftModule（OC）基类
+### 10.1 非 SwiftModule（OC）基类
 
 所有 OC 基类位于 `Classes/BaseModules/Kits/BaseClasses/`：
 
@@ -976,7 +1039,7 @@ public enum I {
 | **HYBaseCollectionViewCell** | **所有 CollectionView Cell 的基类**。封装点击反馈色等通用逻辑，提供 `+getCellIdentifier` 类方法。 |
 | **HYBaseModel** | **所有数据模型的基类**。继承 NSObject，遵循 NSCopying/NSCoding，集成 YYModel 做 JSON 映射。 |
 
-### 9.2 SwiftModule 基类
+### 10.2 SwiftModule 基类
 
 SwiftModule 采用**面向协议 + 轻量基类**的策略，基类位于 `Classes/SwiftModules/Base/BaseKit/Sources/BaseUIKit/`：
 
@@ -993,7 +1056,7 @@ SwiftModule 采用**面向协议 + 轻量基类**的策略，基类位于 `Class
 
 **Cell 复用**：Swift 侧不使用统一的 Cell 基类，而是通过 `CellProtocol`（即 `ReuseIdentifierProtocol`）协议提供 `static var reuseIdentifier` 默认实现。各业务模块自行定义 Cell 基类（如 BookCity 的 `BaseCell`、Community 的 `CommunityBaseCell`）。
 
-### 9.3 公共复用组件
+### 10.3 公共复用组件
 
 以下组件已抽取到 `Classes/BaseModules/CustomView/` 或 `Classes/CommonModules/CommonUI/`，开发时**优先查找是否已有可复用的组件**，避免重复造轮子。
 
@@ -1024,7 +1087,7 @@ sortButton.setEnlargeEdgeWithTop(10, left: 10, bottom: 10, right: 10)
 
 | 组件 | 路径 | 说明 |
 |------|------|------|
-| **HYNewBookCoverView** | `CommonModules/CommonUI/BookCover/` | **书封组件（见 9.4 节）** |
+| **HYNewBookCoverView** | `CommonModules/CommonUI/BookCover/` | **书封组件（见 10.4 节）** |
 | **HYCarouselView** | `CommonModules/CommonUI/BannerLoopView/` | 轮播 Banner 组件 |
 | **HYAlertView / HYNewAlertView** | `CommonModules/CommonUI/Alert/` | 自定义 Alert 弹窗系统 |
 | **HYLoadingView** | `CommonModules/CommonUI/Loading/` | Loading 加载视图（含 UIView/UIViewController 分类） |
@@ -1033,7 +1096,7 @@ sortButton.setEnlargeEdgeWithTop(10, left: 10, bottom: 10, right: 10)
 | **HYCircleProgressView** | `CommonModules/CommonUI/HYCircleProgressView.h` | 圆形进度条 |
 | **HYGuideView** | `CommonModules/CommonUI/Guide/` | 引导页视图 |
 
-### 9.4 书封组件：HYNewBookCoverView（强制使用）
+### 10.4 书封组件：HYNewBookCoverView（强制使用）
 
 **定义位置**：`Classes/CommonModules/CommonUI/BookCover/HYNewBookCoverView.h/.m`
 
@@ -1065,7 +1128,7 @@ Swift 中同样直接使用：
 private let coverView = HYNewBookCoverView(frame: .zero)
 ```
 
-### 9.5 弹窗组件：HYNewAlertView（推荐使用）
+### 10.5 弹窗组件：HYNewAlertView（推荐使用）
 
 **定义位置**：`Classes/CommonModules/CommonUI/Alert/HYNewAlertView.swift`
 
@@ -1120,7 +1183,7 @@ UIView.animate(withDuration: 0.2, animations: {
 })
 ```
 
-### 9.6 复用原则
+### 10.6 复用原则
 
 - 同一个 UI 模式在 **2 个或以上模块** 出现时，必须提取为公共组件，放入 `BaseModules/CustomView/` 或 `CommonModules/CommonUI/`。
 - 公共组件通过 `configure(with:)` 或专门的配置方法暴露接口，**不暴露内部控件和布局**。
@@ -1128,11 +1191,11 @@ UIView.animate(withDuration: 0.2, animations: {
 
 ---
 
-## 10. 多语言与国际化
+## 11. 多语言与国际化
 
 项目支持 **15 种语言**（ar / de / en / es / fr / id / it / ja / ko / pt / ru / th / tl / tr / vi），Dreame 产品额外支持 `fil`（Filipino）。RTL 语言仅阿拉伯语（`ar`）。
 
-### 10.1 资源文件存放
+### 11.1 资源文件存放
 
 三套并行的多语言资源，分别服务于不同模块：
 
@@ -1145,7 +1208,7 @@ UIView.animate(withDuration: 0.2, animations: {
 
 > 项目中**不存在** `.stringsdict` 文件（复数形式通过 `NSString stringWithFormat:` 动态拼接）。
 
-### 10.2 非 SwiftModule（OC）字符串加载
+### 11.2 非 SwiftModule（OC）字符串加载
 
 OC 代码统一使用标准 `NSLocalizedString(key, comment:)`，**无需自定义宏**。项目通过 `NSBundle+HYLanguages` 对 `[NSBundle mainBundle]` 做了 method swizzling，自动将字符串查找重定向到当前语言对应的 `.lproj` 目录。
 
@@ -1168,7 +1231,7 @@ HYAlertView *alert = [HYAlertView alertViewWithTitle:NSLocalizedString(@"notice"
 - 从当前语言对应的 `.lproj` bundle 加载字符串
 - 使用 `NSCache`（countLimit=2000）缓存查找结果
 
-### 10.3 SwiftModule 字符串加载
+### 11.3 SwiftModule 字符串加载
 
 SwiftModule 使用**类型安全的枚举 + 访问器**模式，杜绝硬编码字符串 key。
 
@@ -1210,7 +1273,7 @@ let noData = iUserPreferencesConfig.languageResouce.no_data()
 2. 在 `ResourceDR.swift` 的 `HYLanguageResource` 枚举中添加新 case
 3. 在 `HYLanguageResourceAccessor` 中添加对应的访问器方法
 
-### 10.4 多语言图片
+### 11.4 多语言图片
 
 对于包含文字的图片资源，使用 `UIImage+Multilingual` 分类（`Classes/BaseModules/Utils/UIImage+Multilingual.h/.m`）加载。
 
@@ -1233,7 +1296,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 - `detail_authorized_ar` — 阿拉伯语版
 - `detail_authorized_de` — 德语版
 
-### 10.5 语言切换机制
+### 11.5 语言切换机制
 
 **核心入口**：`HYClient`（`Classes/BaseModules/Utils/HYClient.h/.m`）
 
@@ -1255,7 +1318,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 **RTL 判断**：使用宏 `isRTL()`（仅当语言为 `"ar"` 时返回 YES），用于控制视图的左右镜像适配。
 
-### 10.6 Figma 设计稿中的多语言文案
+### 11.6 Figma 设计稿中的多语言文案
 
 当 Figma 设计稿中包含文案时，处理策略：
 
@@ -1267,7 +1330,7 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 ---
 
-## 11. 动画与交互
+## 12. 动画与交互
 
 - 简单动画使用 `UIView.animate(withDuration:...)` 或 `UIViewPropertyAnimator`。
 - 动画时长参考：
@@ -1279,11 +1342,11 @@ guideButton.setBackgroundImage(UIImage.multilingualImageNamed("reading_pay_guide
 
 ---
 
-## 12. 机型与系统版本适配
+## 13. 机型与系统版本适配
 
 项目最低部署目标为 **iOS 13.0**，同时支持 iPhone 和 iPad。所有 UI 代码必须正确适配不同机型和系统版本。
 
-### 12.1 iPad 适配
+### 13.1 iPad 适配
 
 使用全局常量 `isIPad`（定义于 `SwiftMacro.swift`）判断当前设备：
 
@@ -1312,7 +1375,7 @@ let contentWidth = min(SCREEN_WIDTH, 600)
 let ratio = isIPad ? 0.55 : 0.8
 ```
 
-### 12.2 刘海屏 / 全面屏适配
+### 13.2 刘海屏 / 全面屏适配
 
 使用全局常量 `IS_BAND_SCREEN`（定义于 `SwiftMacro.swift`）判断全面屏机型：
 
@@ -1324,9 +1387,9 @@ view.snp.makeConstraints { make in
 }
 ```
 
-**禁止**自行通过 `safeAreaInsets.bottom > 0` 或硬编码数值判断机型。所有安全区域相关高度统一使用 5.5 节列出的全局常量。
+**禁止**自行通过 `safeAreaInsets.bottom > 0` 或硬编码数值判断机型。所有安全区域相关高度统一使用 6.5 节列出的全局常量。
 
-### 12.3 系统版本适配
+### 13.3 系统版本适配
 
 项目最低部署 iOS 13.0，涉及以下关键 API 分界点：
 
@@ -1366,9 +1429,7 @@ if #available(iOS 13.0, *) {
 
 ---
 
----
-
-## 13. 性能与调试
+## 14. 性能与调试
 
 - 列表和集合视图必须使用 Cell 复用，并正确设置 `estimatedRowHeight` 以启用自定高度。
 - 避免视图层级过深（一般不超过 10 层），复杂页面考虑用 `CALayer` 或异步绘制优化。
@@ -1381,7 +1442,7 @@ constraint.identifier = "avatar-top"
 
 ---
 
-## 14. 第三方库约定
+## 15. 第三方库约定
 
 - 所有依赖通过 **Swift Package Manager** 统一管理。
 - 当前项目允许的第三方库：
