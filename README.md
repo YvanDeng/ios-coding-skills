@@ -28,6 +28,25 @@ ios-coding-skills/
 - 生成变更计划（新建 / 修改 / 部分新增 / 重构建议）
 - 所有输出严格遵循项目 UI 编码规范
 
+**使用示例：**
+
+在 Claude Code 对话中输入以下指令即可触发：
+
+```
+把这个 Figma 设计稿应用一下：https://www.figma.com/design/xxx
+```
+```
+按新设计稿更新个人中心
+```
+```
+实现这个页面 https://www.figma.com/design/xxx
+```
+```
+设置页改版了，帮我调整代码
+```
+
+Skill 会自动执行**分析→映射→决策→确认→执行**的完整流程，根据设计稿与现有代码的关系自主决定最合适的交付策略。
+
 ### oc-to-swift
 
 将 StaryReader 项目中的 Objective-C 代码安全地转换为 Swift。对 OC 源码进行深度分析（类继承关系、属性、协议、调用方），生成转换计划后再执行。确保语义等价且符合项目规范。
@@ -38,6 +57,25 @@ ios-coding-skills/
 - Xcode 工程集成（pbxproj 自动更新）
 - 编译验证与自动修复
 - 经验回写机制（更新映射表与陷阱表）
+
+**使用示例：**
+
+在 Claude Code 对话中输入以下指令即可触发：
+
+```
+把 HYUserProfileView.m 转成 Swift
+```
+```
+把这个 OC 类转成 Swift
+```
+```
+把 BookCity 模块的 Model 层转成 Swift
+```
+```
+转换 HYChapterInfoCell 到 SwiftModules 下
+```
+
+Skill 会自动执行**读取规范→分析 OC 源码→建立映射表→制定转换计划→输出测试用例→执行转换→复查修正→Xcode 工程集成→回写经验**的完整流程。
 
 ## 安装
 
