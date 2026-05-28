@@ -21,7 +21,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, mcp__figma_get_file, mcp__f
 ## 执行流程（全程由 AI 自主分析推进）
 
 ### 第 1 步：读取规范
-- 使用 `Read` 读取 iOS UI 代码规范：`../../docs/ios-ui-code-standard.md`。
+- 使用 `Read` 读取本 Skill 内置的 iOS UI 代码规范：`../docs/ios-ui-code-standard.md`。
 - 完全理解其约定的命名、布局、颜色、字体、组件复用等全部条目。
 - 若该文件缺失，**立即中断**并提示用户重新安装本 Skill。
 
@@ -73,15 +73,68 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, mcp__figma_get_file, mcp__f
 - **资源处理**：提醒用户将需要的图片资源导入 `Assets.xcassets`，并给出建议的名称和分辨率要求。
 - 所有变更的代码中，均用注释标注对应的 Figma 节点名称或 ID，方便追踪。
 
-### 第 6 步：复查提醒
-执行完成后，提醒用户：
-- 检查受影响的其他页面是否兼容（若修改的是公共组件）。
-- 如有新增依赖（如某个第三方库），提供安装命令。
-- 建议运行项目，验证 UI 还原度及交互正常。
+代码生成/修改完成后，对照规范做自查，逐条检查：
+
+- [ ] 文件命名是否符合规范（1.1-1.2 节）
+- [ ] 视图代码结构是否遵循统一模板：`// MARK: -` 分区（UI Elements → Initialization → viewInit → makeConstraints → Actions → Public Configuration）
+- [ ] UI 元素是否使用 `private let` 声明（非 UICollectionView 不得使用 `lazy var`）
+- [ ] Cell 子视图是否加到 `contentView` 而非 `self`
+- [ ] 字体/颜色/圆角/对齐等样式是否全部在 `viewInit()` 中配置
+- [ ] 布局是否全部使用 SnapKit 在 `makeConstraints()` 中完成（不可混用 frame 和约束）
+- [ ] 是否使用了合规的颜色/字体/图片 API
+- [ ] 屏幕尺寸/安全区域是否使用全局常量（`SCREEN_WIDTH` / `TopMargin` 等，禁止 `UIScreen.main.bounds`）
+- [ ] 是否禁止 `!` 强制解包（可选值必须 `??` 提供默认值）
+- [ ] 是否使用了项目公共组件（HYNewBookCoverView、HYNewAlertView 等），避免重复造轮子
+
+发现不符合规范的结构，**立即修正**，不等到编译验证阶段。
+
+### 第 6 步：复查与自动修正
+
+变更完成后，**自动执行**以下检查并修正问题，无需用户介入：
+
+1. **颜色规范检查**：扫描所有 `UIColor(red:green:blue:alpha:)` 调用，替换为 ColorSet 方法或 `UIColor(hex:)`。对照 Figma 色值查找 `UIColor+HYColorSet` 中的语义匹配方法。
+2. **字体规范检查**：扫描 `UIFont.systemFont(ofSize:)` / `UIFont.boldSystemFont(ofSize:)`，替换为 `UIFont.appleSFUIFont*` 或 `UIFont.hyfont.*` 方法。
+3. **可选值安全检查**：扫描所有 `!` 强制解包，替换为 `??` 默认值或 `guard let` 处理。
+4. **Cell 子视图检查**：扫描所有 `UITableViewCell` / `UICollectionViewCell` 子类中的 `self.addSubview`，改为 `contentView.addSubview`。
+5. **Frame 与约束混用检查**：确保每个视图的布局方式唯一（SnapKit 或 frame 二选一），发现混用立即修正。
+6. **公共组件复用检查**：若生成的代码与 `HYNewBookCoverView`、`HYNewAlertView`、`HYCarouselView` 等已有公共组件功能重叠，替换为复用已有组件。
+7. **多语言文案检查**：扫描所有硬编码的中文/英文文本，替换为 `NSLocalizedString` 或 `iUserPreferencesConfig.languageResouce.*` 调用，并给出需要新增的多语言 Key 清单。
+
+### 第 7 步：Xcode 工程集成
+
+代码编写和自查完成后，将新文件加入 Xcode 工程，**自动执行全流程**直到编译通过：
+
+1. **更新 .pbxproj**：
+   - 将新增的 `.swift` / `.m` / `.h` 文件添加到对应 target 的 PBXFileReference、PBXBuildFile 和 PBXGroup 中，使用唯一的 UUID
+   - 将新文件放入与功能匹配的 PBXGroup 中（参考设计稿所属的页面/模块）
+2. **图片资源导入**（如适用）：
+   - 从 Figma 导出的图片放入对应模块的 Assets.xcassets 中，按功能域建立子目录
+   - SwiftModule 模块的新图片需同步更新 `ResourceDR.swift` 中的 `I` 枚举定义
+3. **验证编译**：
+   - 使用 `xcodebuild` 命令行工具执行增量编译：
+     ```bash
+     xcodebuild -workspace ReaderLight.xcworkspace -scheme Dreame -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -80
+     ```
+   - 若模拟器不可用，使用 `xcrun simctl list devices available` 查找可用设备名替换 `iPhone 16`
+   - 若编译失败，分析错误并自主修正代码（如修正 import 缺失、类型不匹配、API 调用错误等），然后重复编译验证直到通过
+4. **重复文件检查**：若新增文件功能与已有老文件高度重叠（如旧版同一页面的视图），确认是否需要删除旧文件并更新引用。
+
+### 第 8 步：回写经验
+
+编译通过后，**自动执行**以下经验沉淀，无需用户介入：
+
+1. **更新 UI 编码规范候选**：从本次生成的代码中识别出**可复用的通用 UI 模式**（如新的颜色组合、布局模式、组件搭配等），列出候选清单供用户确认后，再写入 `../docs/ios-ui-code-standard.md`。
+
+2. **更新常见问题记录**：将本次代码生成/修改过程中遇到的 Figma 设计稿到代码的特殊映射关系、项目特有的组件用法、编译错误及解决方案记录到本 Skill 中，供后续任务参考。
+
+**第 1 点的执行约束**：
+- 只列候选，**不直接写入 UI 规范文档**，必须等用户确认
+- 候选必须是**通用模式**，而非特定业务的一次性代码
+- 每个候选附带：模式名称、简要说明、出现在哪个文件
 
 ## 错误处理
 - Figma MCP 工具报错：提示用户检查 Figma 访问令牌及网络。
-- 规范文档缺失：提示用户重新安装 Skill，确保 `../../docs/ios-ui-code-standard.md` 存在。
+- 规范文档缺失：提示用户重新安装 Skill，确保 `../docs/ios-ui-code-standard.md` 存在。
 - 设计过于复杂导致无法完全自动化：完成基础部分，在代码中标记 `#warning TODO: 需手动实现的部分`，并给出详细建议。
 - 若在扫描现有代码时发现多个高度相似的候选文件，或无法确定最佳匹配，将选项列出并请用户抉择，而不是盲目猜测。
 
@@ -91,4 +144,4 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, mcp__figma_get_file, mcp__f
 - "实现这个页面 https://www.figma.com/design/xxx"
 - "设置页改版了，帮我调整代码"
 
-无论用户怎么说，你都会执行**分析→映射→决策→确认→执行**的完整流程，自主决定最合适的代码交付策略。
+无论用户怎么说，你都会执行**分析→映射→决策→确认→执行→自查→复查修正→工程集成→回写经验**的完整流程，自主决定最合适的代码交付策略。
